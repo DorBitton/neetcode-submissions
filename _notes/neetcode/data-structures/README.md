@@ -13,10 +13,10 @@ Quick guide to each structure — what it is, how to use it in Python, when to r
 - [x] Hash Set (`set`)
 - [x] Hash Map (`dict`, `defaultdict`, `Counter`)
 - [x] Tuple
+- [x] Stack → [`stack.md`](./stack.md)
 
 ## Still to Learn
 
-- [ ] Stack
 - [ ] Queue / Deque
 - [ ] Linked List
 - [ ] Binary Tree

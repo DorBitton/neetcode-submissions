@@ -121,7 +121,7 @@ for right in range(len(s)):
 
 ---
 
-## Pattern 4 — Stack
+## Pattern 4 — Stack ✓
 
 **The idea:** Push items onto a stack, pop when a condition is met.
 Useful for matching pairs or "what was the last thing I saw?"
@@ -131,16 +131,28 @@ Useful for matching pairs or "what was the last thing I saw?"
 - "Next greater element"
 - "Evaluate an expression"
 
-**Template:**
+**Two sub-patterns → see [`../data-structures/stack.md`](../data-structures/stack.md)**
 
 ```python
+# Matching
 stack = []
-for x in items:
-    while stack and condition(stack[-1], x):
+for char in s:
+    if opening: stack.append(char)
+    else:
+        if not stack or stack[-1] != expected: return False
         stack.pop()
-        # process the popped element
-    stack.append(x)
+return not stack
+
+# Monotonic (next greater element)
+stack = []
+for i, val in enumerate(nums):
+    while stack and val > nums[stack[-1]]:
+        idx = stack.pop()
+        result[idx] = i - idx
+    stack.append(i)
 ```
+
+**NeetCode problems:** Valid Parentheses · Min Stack · Evaluate RPN · Daily Temperatures · Car Fleet · Largest Rectangle In Histogram
 
 ---
 
