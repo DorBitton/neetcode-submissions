@@ -7,7 +7,7 @@
 
 ---
 
-## Lesson Progress
+## KillerCoda — Pawel Piwosz (lessons 1–20)
 
 | # | Lesson | Status | Concepts |
 |---|--------|--------|---------|
@@ -32,6 +32,27 @@
 | 19 | Inodes | ⬜ | what an inode is, `ls -i`, `stat` |
 | 20 | Permissions | ⬜ | `chmod`, `chown`, `chgrp`, octal notation |
 | — | Test your knowledge | ⬜ | — |
+
+---
+
+## KillerCoda — Alexis Carbillet (troubleshooting scenarios)
+
+Real-world troubleshooting labs. Harder than the Pawel lessons — closer to what prepare.sh and SRE interviews test.
+
+| Scenario | Status | Concepts |
+|---|---|---|
+| Cron Job Troubleshooting | ⬜ | `crontab`, cron syntax, diagnosing broken jobs |
+| Exploring and Mounting Disks in Linux | ⬜ | `lsblk`, `df`, `mount`, `umount` |
+| Linux Disk Full: Log Management | ⬜ | `/var/log`, `logrotate`, disk space, `du` |
+| Linux Firewall Troubleshooting | ⬜ | `iptables`, blocked services, rule removal |
+| Linux Process Management & Resource Limits | ⬜ | `top`, `ps`, `kill`, CPU/memory limits, runaway processes |
+| Linux Systemd Service Debugging | ⬜ | `systemctl`, `journalctl`, unit files, service lifecycle |
+| Linux Troubleshooting: Backup and Restore | ⬜ | `tar`, `rsync`, corrupted backups, restore |
+| Linux User, Group, and Permissions Troubleshooting | ⬜ | `useradd`, `chmod`, `ACL`, access debugging |
+| Log Mining with Grep and Awk | ⬜ | `grep`, `awk`, log patterns, column extraction |
+| Network Service Troubleshooting | ⬜ | `ss`, `netstat`, open ports, listening processes, connectivity |
+| SSH Hardening & Security Audit | ⬜ | `sshd_config`, key-based auth, security hardening |
+| Text Transformation with sed | ⬜ | `sed`, stream editing, find/replace, filtering |
 
 ---
 
