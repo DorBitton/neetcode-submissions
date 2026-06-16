@@ -19,6 +19,33 @@ Container orchestration. On-prem K8s and EKS (AWS managed).
 
 ---
 
+## Practice Tasks (prepare.sh)
+
+Work through these at [prepare.sh/track/devops](https://prepare.sh/track/devops) → Kubernetes section.
+
+### Easy (4)
+- [ ] Dynamic Volume Expansion
+- [ ] Create Namespace
+- [ ] Pod with Readiness Probe
+- [ ] Pod Viewer Access
+
+### Medium (10)
+- [ ] Crashing Misconfigured Pod
+- [ ] Image Pull BackOff and Secrets
+- [ ] CronJob Schedule Misconfiguration
+- [ ] Traffic Splitting with Native Kubernetes
+- [ ] ConfigMap Reload with Sidecar
+- [ ] Implement StatefulSet with Stable DNS
+- [ ] StorageClass and PVC Expansion
+- [ ] OOMKilled Pod Analysis & Fix
+- [ ] Secure Internal Service Communication
+- [ ] Custom Resource Definition Setup
+
+### Hard (1)
+- [ ] CRD Schema Validation
+
+---
+
 ## Cross-references
 - `aws/` → `aws/concepts/eks.md` for the AWS-specific angle
 - `networking/` → K8s networking builds on L3/L4 concepts

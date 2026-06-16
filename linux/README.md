@@ -57,3 +57,44 @@
 | File | What's in it |
 |---|---|
 | [`interview-questions.md`](./interview-questions.md) | 25 common Linux interview questions with answers |
+
+---
+
+## Practice Tasks (prepare.sh)
+
+Work through these hands-on scenarios at [prepare.sh/track/devops](https://prepare.sh/track/devops) → Linux section.
+
+### Easy (10)
+- [ ] Managing High I/O Processes
+- [ ] Tracing Log File Writes
+- [ ] Port Conflict Resolution
+- [ ] Diagnose Nginx CPU Bottleneck
+- [ ] Handling Large Log Archives
+- [ ] Validating DNS Consistency
+- [ ] Network Packet Loss Diagnosis
+- [ ] Network Port Service Cleanup
+- [ ] Temporary Route Configuration
+- [ ] Network Socket Usage Analysis
+
+### Medium (14)
+- [ ] Analyzing Log Partition Usage
+- [ ] Using Unmounted Partitions
+- [ ] Debug SSH Lockout
+- [ ] Monitoring Process Ownership
+- [ ] Detect Memory Leak by Monitoring RSS
+- [ ] Fix Inode Exhaustion Issue
+- [ ] Fix HTTPS Certificate Error
+- [ ] Real-Time Log Timestamping
+- [ ] Update Cloud Configs
+- [ ] Upload-Safe File Partitioning
+- [ ] Fix Port Exhaustion for High-Speed Scraper
+- [ ] Validating Network Routes
+- [ ] Inspecting HTTP Traffic Flow
+- [ ] Forward Traffic Between Ports
+
+### Hard (5)
+- [ ] Rapid Disk Growth on /var
+- [ ] Manage Service Failure Recovery
+- [ ] Nginx Rate Limit Calculation
+- [ ] Automated Archive and Retention
+- [ ] Trace Process Service Ownership

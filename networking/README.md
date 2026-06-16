@@ -26,6 +26,27 @@ L3  Network       IP, CIDR, routing            On-prem routers, BGP       AWS VP
 
 ---
 
+## Practice Tasks (prepare.sh)
+
+Work through these at [prepare.sh/track/devops](https://prepare.sh/track/devops) → Networking section.
+
+### Easy (5)
+- [ ] Validating DNS Consistency
+- [ ] Network Packet Loss Diagnosis
+- [ ] Network Port Service Cleanup
+- [ ] Temporary Route Configuration
+- [ ] Network Socket Usage Analysis
+
+### Medium (3)
+- [ ] Validating Network Routes
+- [ ] Inspecting HTTP Traffic Flow
+- [ ] Forward Traffic Between Ports
+
+### Hard (1)
+- [ ] Macvlan Network Configuration Fix
+
+---
+
 ## Study order
 
 1. L3 — understand IP and routing first, everything else builds on it

@@ -17,12 +17,13 @@ Extracted from real SRE / DevOps interview recordings and experiences.
 
 | File | Status |
 |---|---|
+| [`aws-patterns.md`](./aws-patterns.md) | ✅ VPC design, IAM, HA, debugging, security |
+| [`kubernetes-patterns.md`](./kubernetes-patterns.md) | ✅ CrashLoopBackOff, deployments, RBAC, probes, EKS |
+| [`terraform-patterns.md`](./terraform-patterns.md) | ✅ State, modules, plan/apply, errors, secrets |
+| [`system-design-patterns.md`](./system-design-patterns.md) | ✅ SLOs, failure modes, observability, scaling, deployment |
 | `linux-patterns.md` | ⬜ Not started |
 | `networking-patterns.md` | ⬜ Not started |
 | `docker-patterns.md` | ⬜ Not started |
-| `kubernetes-patterns.md` | ⬜ Not started |
-| `aws-patterns.md` | ⬜ Not started |
-| `system-design-patterns.md` | ⬜ Not started |
 | `behavioral-patterns.md` | ⬜ Not started |
 
 ---

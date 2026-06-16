@@ -4,6 +4,33 @@ SRE/DevOps behavioral interviews focus on **incidents, reliability decisions, an
 
 ---
 
+## How to Deliver — What Separates Top 1% Answers
+
+STAR is just a guardrail. What actually wins interviews is delivery. Three techniques:
+
+### 1. Show, don't tell
+Don't recite facts in sequence. Immerse the interviewer in the story by sharing your **raw unfiltered thoughts** in the moment.
+
+Weak: *"I disagreed with my manager so I did more research."*
+Strong: *"Honestly, in that moment I was gutted — it felt like he just wrote me off. But I knew I had conviction in the idea so..."*
+
+You can't filter your thoughts, so sharing them signals authenticity. Then follow with what you actually did.
+
+### 2. Future pacing — tie it to THIS role
+Don't just end with "it was a success." End by connecting what you learned to the specific job you're interviewing for.
+
+*"That experience showed me that as a junior person you're often closest to the data. At [company], as an SRE, I know I'll run into situations where I need to push back on architectural decisions with data — and I know exactly how to do that now."*
+
+You're planting the idea of yourself already working there. This is the most overlooked technique.
+
+### 3. Be specific — numbers and details
+Specifics are memorable. Vague answers blend together.
+
+Weak: *"I talked to some customers."*
+Strong: *"I talked to 15 customers in the German market over the next week, compiled the findings, and built a tight presentation."*
+
+---
+
 ## The STAR Framework
 
 Every behavioral answer follows the same structure:
@@ -11,8 +38,8 @@ Every behavioral answer follows the same structure:
 ```
 Situation   → context, what was happening
 Task        → what was your role / what needed to be done
-Action      → specifically what YOU did (not "we")
-Result      → measurable outcome, what you learned
+Action      → specifically what YOU did (not "we") — be specific, share thoughts
+Result      → measurable outcome + what you learned + how it applies HERE
 ```
 
 Keep answers to 2-3 minutes. Lead with the result if it's strong.

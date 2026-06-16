@@ -8,7 +8,8 @@ The meta layer — not what to know, but how to present it.
 
 | File | What's in it |
 |---|---|
-| [`behavioral.md`](./behavioral.md) | STAR format, 10 common SRE behavioral questions with frameworks |
+| [`behavioral.md`](./behavioral.md) | STAR format + delivery techniques (show don't tell, future pacing), 10 common SRE behavioral questions |
+| [`communication.md`](./communication.md) | How to explain technical concepts clearly: first principles, Feynman technique, top-down structure |
 | [`patterns/`](./patterns/) | Question patterns extracted from real SRE/DevOps interview recordings |
 
 ---
