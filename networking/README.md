@@ -9,7 +9,7 @@
 | File | What's in it |
 |---|---|
 | [`CHEATSHEET.md`](./CHEATSHEET.md) | All commands, ports, protocols on one page |
-| [`concepts/l3-network-layer.md`](./concepts/l3-network-layer.md) | IP, CIDR, subnetting, routing, BGP — on-prem routers + AWS VPC |
+| [`concepts/l3-network-layer.md`](./concepts/l3-network-layer.md) | ✅ IP, CIDR, subnetting, routing, BGP — on-prem routers + AWS VPC |
 | [`concepts/l4-transport-layer.md`](./concepts/l4-transport-layer.md) | TCP/UDP, ports, handshake, connections — F5 TCP VIPs + AWS NLB |
 | [`concepts/l7-application-layer.md`](./concepts/l7-application-layer.md) | HTTP/HTTPS, DNS, TLS — F5 iRules/profiles + AWS ALB + Route53 |
 | [`interview-questions.md`](./interview-questions.md) | 20 networking questions you will get asked |
@@ -49,6 +49,6 @@ Work through these at [prepare.sh/track/devops](https://prepare.sh/track/devops)
 
 ## Study order
 
-1. L3 — understand IP and routing first, everything else builds on it
+1. ✅ L3 — understand IP and routing first, everything else builds on it
 2. L4 — understand TCP before HTTP (HTTP runs on top of TCP)
 3. L7 — HTTP, DNS, TLS
