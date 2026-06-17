@@ -1,0 +1,23 @@
+class Solution:
+    def minEatingSpeed(self, piles: List[int], h: int) -> int:
+        def time_taken(rate):
+            time = 0
+            for i in range(len(piles)):
+                time += (piles[i] + rate - 1) // rate
+            return time
+
+        left, right = 1, max(piles)
+
+        ans = 0
+
+        while left <= right:
+            mid = (left+right) // 2
+
+            if time_taken(mid) <= h:
+                ans = mid
+                right = mid - 1
+
+            else:
+                left = mid + 1
+
+        return ans
