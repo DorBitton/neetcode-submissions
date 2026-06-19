@@ -72,6 +72,7 @@ Real-world troubleshooting labs. Harder than the Pawel lessons — closer to wha
 | [`concepts/streams.md`](./concepts/streams.md) | 5, 15 | Pipes, stdin/stdout/stderr, redirections |
 | [`concepts/processes.md`](./concepts/processes.md) | 8, 9, 16 | top, ps, cron, process management |
 | [`concepts/users.md`](./concepts/users.md) | 11, 13, 20 | Users, groups, sudo, permissions |
+| [`concepts/logs.md`](./concepts/logs.md) | 14 | /var/log files, journalctl, logrotate, real-world scenarios |
 
 ### Interview Prep
 
