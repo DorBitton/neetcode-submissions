@@ -24,7 +24,7 @@
 | 11 | Work with users | ⬜ | `useradd`, `usermod`, `passwd`, `groups` |
 | 12 | Your work history | ⬜ | `history`, `!!`, `!n`, Ctrl+R |
 | 13 | Elevate privileges | ✅ | `sudo`, `su`, `/etc/sudoers` |
-| 14 | Work with logs | ⬜ | `journalctl`, `/var/log/`, `tail -f` |
+| 14 | Work with logs | ✅ | `journalctl`, `/var/log/`, `tail -f` |
 | 15 | Streams | ⬜ | stdin/stdout/stderr, `>`, `>>`, `2>` |
 | 16 | Crontab | ⬜ | `crontab -e`, cron syntax, scheduling |
 | 17 | Know your files | ⬜ | `file`, `stat`, `du`, `df`, `find` |

@@ -9,9 +9,9 @@
 
 | Subject | Resource | Status |
 |---|---|---|
-| DSA | NeetCode + hellointerview.com | 🔄 In progress |
-| Linux | KillerCoda scenarios | 🔄 In progress |
-| Networking | — | ⬜ Up next |
+| DSA | NeetCode + hellointerview.com | 🔄 In progress — binary search section |
+| Linux | KillerCoda scenarios | 🔄 In progress — lesson 14 done (Pawel), Alexis scenarios not started |
+| Networking | L3 ✅ L4 🔄 L7 ⬜ | 🔄 In progress |
 | Everything else | — | ⬜ Not started |
 
 ---
@@ -31,8 +31,8 @@
 - [ ] Answer all 25 questions in `linux/interview-questions.md` out loud without looking
 
 ### Networking — L3 / L4 / L7 (start after Linux feels solid)
-- [ ] Read `networking/concepts/l3-network-layer.md` — understand IP, CIDR, routing
-- [ ] Read `networking/concepts/l4-transport-layer.md` — understand TCP vs UDP, F5 vs NLB
+- [x] Read `networking/concepts/l3-network-layer.md` — understand IP, CIDR, routing
+- [x] Read `networking/concepts/l4-transport-layer.md` — understand TCP vs UDP, F5 vs NLB
 - [ ] Read `networking/concepts/l7-application-layer.md` — understand HTTP, DNS, TLS, F5 vs ALB
 - [ ] Read `networking/CHEATSHEET.md` and quiz yourself
 - [ ] Answer all questions in `networking/interview-questions.md` out loud
