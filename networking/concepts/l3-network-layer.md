@@ -127,7 +127,7 @@ ping 8.8.8.8               # test basic connectivity
 
 You don't need to configure BGP as an SRE, but you need to understand:
 
-- **AS (Autonomous System):** a network under one organization's control with a unique AS number
+- **AS (Autonomous System):** a network under one organization's control with a unique AS number (ASN)
 - **eBGP:** BGP between different organizations (internet routing)
 - **iBGP:** BGP within the same organization (internal routing)
 - **BGP advertises prefixes:** "I can reach 203.0.113.0/24, send those packets to me"
@@ -136,6 +136,101 @@ You don't need to configure BGP as an SRE, but you need to understand:
 - Multi-datacenter failover often uses BGP to advertise the same IP from multiple locations
 - AWS Direct Connect uses BGP to connect on-prem to AWS
 - BGP route leaks or misconfiguration can cause major outages (this comes up in incident postmortems)
+
+### BGP Hijacking
+
+BGP has no built-in authentication. Any AS can announce any prefix. When they do, routers believe them.
+
+**Route leak (accidental — most common):**
+- A small ISP misconfigures their router and announces "I can reach 8.8.8.8/32"
+- Their upstream (Comcast, Level3) accepts it and propagates to the whole internet
+- Traffic for Google's DNS now routes through the small ISP instead of Google
+
+This happens multiple times per year to major networks. In 2010, China Telecom hijacked ~15% of the global internet for 18 minutes. In 2019, a small Swiss ISP leaked 70,000 routes, disrupting Google, AWS, and Cloudflare.
+
+**BGP hijack (malicious):**
+- An attacker announces a more specific prefix (longer match wins)
+- Traffic for the victim gets silently diverted — can be used for eavesdropping or blackholing
+
+**What SREs do about it:**
+- BGPsec and RPKI (Resource Public Key Infrastructure) are emerging mitigations
+- Monitor for unexpected route changes with tools like Thousand Eyes or BGPmon
+- Egress monitoring: a sudden drop in outbound traffic is often the first signal something's wrong
+
+---
+
+## 5a. Internet Exchanges and Peering
+
+The internet is not one network — it's thousands of independent networks (ASes) that agree to exchange traffic.
+
+**Peering:** two networks directly exchange traffic between them, typically without payment, because both benefit. Facebook peers with major ISPs so that ISP traffic to Facebook never has to transit a paid intermediary.
+
+**Internet Exchange (IX):** a physical location where many networks plug in and peer with each other. Instead of running fiber to every partner, you run one cable to an IX and peer with hundreds of networks there.
+
+```
+Without IX:                    With IX:
+Network A ──── Network B       Network A ──┐
+Network A ──── Network C           Network B ──┤── IX ── all connected
+Network A ──── Network D           Network C ──┘
+(N cables for N partners)      (1 cable to IX, peer with everyone)
+```
+
+**Major internet exchanges:**
+- **US:** DE-CIX New York, Equinix IX (multiple cities), Any2 (LA)
+- **Europe:** DE-CIX Frankfurt (largest by traffic), AMS-IX Amsterdam, LINX London
+- **Undersea cables** terminate on the coasts → why internet exchanges cluster near coasts
+
+**Why SREs care:** when you see traceroute hops with AS changes, you're seeing BGP peering in action. IX locations are also where CDN PoPs (Points of Presence) are placed — as close as possible to where ISPs peer.
+
+---
+
+## 5b. Anycast
+
+**Anycast:** the same IP address is announced from multiple locations. The network routes you to the nearest one.
+
+```
+IP: 1.1.1.1 announced from:
+  ├── Cloudflare PoP in New York
+  ├── Cloudflare PoP in London  
+  ├── Cloudflare PoP in Tokyo
+  └── Cloudflare PoP in Sydney
+
+User in London → BGP routes to London PoP
+User in Tokyo → BGP routes to Tokyo PoP
+```
+
+**Who uses anycast:**
+- All 13 DNS root server clusters (e.g., 198.41.0.4 is served from ~1500 locations worldwide)
+- Cloudflare DNS (1.1.1.1), Google DNS (8.8.8.8)
+- CDN edge nodes
+- DDoS scrubbing centers (traffic routed to nearest scrubber automatically)
+
+**Why SREs care:** anycast is how you achieve global low-latency without DNS tricks. It's also why you can DDoS-proof a service — traffic distributes across all PoPs automatically.
+
+---
+
+## 5c. Latency at the Speed of Light
+
+Light travels ~300,000 km/s in vacuum. In fiber (which bends and refracts), it's ~200,000 km/s — about 2/3 of light speed.
+
+**Real-world one-way latencies:**
+
+| Route | Distance | Minimum one-way | Realistic RTT |
+|---|---|---|---|
+| Same city | ~10km | <1ms | ~1-2ms |
+| US coast-to-coast (NY→LA) | ~4,500km | ~22ms | ~40-70ms |
+| New York → London | ~5,500km | ~28ms | ~70-80ms |
+| New York → Tokyo | ~11,000km | ~55ms | ~110-140ms |
+| New York → Sydney | ~16,000km | ~80ms | ~160-200ms |
+| Around the world | ~40,000km | ~200ms | ~400ms+ |
+
+**"Realistic RTT" is always higher than minimum** because:
+- Fiber routes are not straight lines
+- Packets traverse multiple routers (each adds processing time)
+- Internet exchanges add small delays
+- ISP routing policies don't always pick the shortest path
+
+**Why this matters:** a 4-RTT HTTPS request (TCP + TLS 1.2 + HTTP) from New York to Sydney takes ~640-800ms minimum, before your app does anything. This is the physical reality CDNs work against.
 
 ---
 

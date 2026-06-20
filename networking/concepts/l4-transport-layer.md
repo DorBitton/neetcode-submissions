@@ -127,6 +127,73 @@ Ports identify which process on a host should receive a packet.
 
 ---
 
+## 4a. ICMP — Internet Control Message Protocol
+
+ICMP is a Layer 3 protocol (it rides on IP, not TCP/UDP) used by network devices to send **error and diagnostic messages** back to senders.
+
+### Key ICMP message types
+
+| Type | Name | What it means |
+|---|---|---|
+| 0 / 8 | Echo reply / Echo request | `ping` — basic reachability test |
+| 3 | Destination unreachable | Packet couldn't be delivered (port closed, network unreachable) |
+| 11 | Time exceeded | TTL hit zero — `traceroute` uses this |
+| 12 | Parameter problem | Malformed IP header |
+
+**Packet Too Big (Type 3, Code 4):** one of the most important for SREs.
+
+When a packet is larger than the MTU (Maximum Transmission Unit) of a link along the path, the router drops the packet and sends an ICMP "Packet Too Big" back to the sender. The sender then reduces its packet size.
+
+If ICMP is blocked, the sender never gets this message and the connection silently hangs.
+
+### MTU and Path MTU Discovery
+
+**MTU (Maximum Transmission Unit):** the largest packet a link can carry.
+- Ethernet standard: **1500 bytes**
+- Jumbo frames (some data center configs): up to 9000 bytes
+
+**Path MTU Discovery (PMTUD):** TCP discovers the smallest MTU along the entire path so it doesn't send oversized packets. It does this by:
+1. Sending packets with the "Don't Fragment" (DF) bit set
+2. If a router can't forward it, it sends back ICMP Packet Too Big
+3. TCP reduces the MSS (Maximum Segment Size) and retries
+
+**The ICMP blocking problem:** many "security-hardened" environments block all ICMP. This breaks PMTUD. Symptoms:
+- Connection establishes fine (small packets work)
+- Large transfers hang or fail silently (big packets get dropped, no ICMP error returned)
+- VPN tunnels are a common place this shows up (tunnel overhead reduces effective MTU)
+
+```bash
+# Debug MTU issues
+ping -M do -s 1472 8.8.8.8    # send 1500-byte packet (1472 data + 28 IP/ICMP headers), DF set
+                                # if it fails, MTU is below 1500
+tracepath example.com          # discovers MTU along path (unlike traceroute)
+ip link show eth0 | grep mtu   # show interface MTU
+```
+
+### Why you should never block all ICMP
+
+Common mistake: block ICMP entirely for "security." This breaks:
+- `ping` (obviously)
+- `traceroute` / MTU discovery (PMTUD silently fails)
+- Large TCP transfers that need to negotiate smaller packet sizes
+
+**What you should actually do:** block ICMP echo (ping) if you must for security, but always allow:
+- `ICMP Type 3` (Destination Unreachable) — needed for PMTUD and port-unreachable signals
+- `ICMP Type 11` (Time Exceeded) — needed for traceroute to work
+
+### ICMP in SRE work
+
+```bash
+ping -c 5 8.8.8.8               # basic connectivity test, check packet loss %
+traceroute 8.8.8.8              # map the path, find where packets stop
+mtr 8.8.8.8                    # continuous traceroute with live stats (best for debugging)
+ping -f -c 1000 10.0.0.1       # flood ping — stress test, measure loss rate
+```
+
+`mtr` is the most useful tool for diagnosing routing issues — it combines `ping` and `traceroute` and shows live packet loss per hop.
+
+---
+
 ## 5. On-prem: F5 L4 Load Balancing (VIPs and Pools)
 
 F5 BIG-IP is the dominant on-prem load balancer. Understanding its model is essential for big tech SRE interviews where on-prem infra is in scope.

@@ -93,6 +93,40 @@ HTTP/2     → multiplexing: many requests in parallel over one connection, bina
 HTTP/3     → runs on QUIC (UDP-based), lower latency, better mobile performance
 ```
 
+### HTTP/1.1 head-of-line blocking
+
+HTTP/1.1 is a text protocol — one request, wait for response, then send the next. Even with keep-alive (reusing the TCP connection), requests are **sequential on that connection**.
+
+```
+Connection 1:  [req1 ──────────────▶ resp1] [req2 ──────────▶ resp2]
+                wait...                       wait...
+```
+
+Browsers work around this by opening **6 parallel TCP connections** per origin. But each connection has its own TCP + TLS handshake cost. Under high concurrency this creates thousands of connections server-side.
+
+### HTTP/2 multiplexing
+
+HTTP/2 is a **binary, framed protocol**. Each request gets a stream ID. Multiple streams travel concurrently over one TCP connection.
+
+```
+One TCP connection:
+  Stream 1: [GET /] ──────────────────────▶ [200 + body]
+  Stream 2: [GET /style.css] ─────────────▶ [200 + body]
+  Stream 3: [GET /app.js] ────────────────▶ [200 + body]
+            all at the same time
+```
+
+No head-of-line blocking at the HTTP layer. One connection, many parallel requests.
+
+**HTTP/2 still has TCP head-of-line blocking:** if one TCP segment is lost, all streams stall until TCP retransmits it.
+
+### HTTP/3 / QUIC
+
+HTTP/3 replaces TCP with **QUIC** (a protocol built on UDP):
+- Each stream is independent at the transport layer — one lost packet stalls only that stream, not all streams
+- TLS 1.3 is built in — 1-RTT or 0-RTT connection setup
+- Connection migration — if your IP changes (phone switches from WiFi to cellular), the QUIC connection survives
+
 ---
 
 ## 3. HTTPS and TLS
@@ -129,6 +163,51 @@ Root CA (DigiCert)
 ```
 Browsers trust Root CAs. Your cert is trusted because the chain leads back to a root.
 
+### ALPN — Application Layer Protocol Negotiation
+
+ALPN is a TLS extension that lets client and server negotiate **which application protocol to use** inside the TLS handshake — before any HTTP is sent.
+
+```
+ClientHello includes:  ALPN: ["h2", "http/1.1"]
+ServerHello responds:  ALPN: "h2"
+→ both sides know to use HTTP/2 from the first encrypted byte
+```
+
+Without ALPN, you'd need a separate round-trip to negotiate the protocol. ALPN is how HTTP/2 gets enabled — the negotiation happens for free inside the TLS handshake.
+
+**Debug it:**
+```bash
+curl -v https://example.com 2>&1 | grep -i "ALPN\|h2"
+openssl s_client -alpn h2 -connect example.com:443
+```
+
+### HSTS — HTTP Strict Transport Security
+
+A response header that tells browsers: **always use HTTPS for this domain, never HTTP**, even if the user types `http://`.
+
+```
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+```
+
+**The problem it solves:** the very first HTTP request to a site (before HSTS is set) can be intercepted and redirected to a fake HTTPS site. HSTS prevents the initial HTTP request from ever happening after the first visit.
+
+**HSTS preload:** browsers ship with a built-in list of domains that are HSTS-only. Even the first-ever visit uses HTTPS. Submit your domain at hstspreload.org.
+
+**SRE gotcha:** if you set HSTS with a long max-age and then need to serve HTTP (during cert incident, or migrating off HTTPS), browsers will refuse to connect for up to a year for returning users.
+
+### TLS Session Resumption
+
+Re-doing the full TLS handshake on every connection is expensive. Session resumption lets clients **skip the key exchange** on subsequent connections.
+
+**Session tickets:** server encrypts session state and sends it to the client as a "ticket." Next connection, client sends the ticket back, server decrypts it, skips the handshake.
+
+```
+First connection:   ClientHello → ServerHello + Cert + Session Ticket → Key Exchange → Done
+Second connection:  ClientHello + Session Ticket → ServerHello → Done (1 RTT instead of 2)
+```
+
+**TLS 1.3 0-RTT:** even faster — client can send application data with the very first packet using a pre-shared key from the previous session. Trade-off: replay attack risk (same data could be replayed by an attacker). Not safe for non-idempotent requests.
+
 ### Common TLS issues SREs deal with
 ```
 Certificate expired         → HTTPS breaks entirely, users see browser warning
@@ -136,6 +215,8 @@ Wrong hostname in cert      → cert for api.example.com used on www.example.com
 Self-signed cert            → not trusted by browsers unless manually installed
 Mixed content               → HTTPS page loading HTTP resources → blocked by browsers
 TLS version mismatch        → client needs TLS 1.2, server only offers 1.3 (or vice versa)
+ALPN mismatch               → server doesn't advertise h2, clients fall back to HTTP/1.1
+HSTS misconfigured          → max-age too long before you're sure HTTPS is stable
 ```
 
 ---

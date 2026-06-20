@@ -9,9 +9,10 @@
 | File | What's in it |
 |---|---|
 | [`CHEATSHEET.md`](./CHEATSHEET.md) | All commands, ports, protocols on one page |
-| [`concepts/l3-network-layer.md`](./concepts/l3-network-layer.md) | ✅ IP, CIDR, subnetting, routing, BGP — on-prem routers + AWS VPC |
-| [`concepts/l4-transport-layer.md`](./concepts/l4-transport-layer.md) | TCP/UDP, ports, handshake, connections — F5 TCP VIPs + AWS NLB |
-| [`concepts/l7-application-layer.md`](./concepts/l7-application-layer.md) | HTTP/HTTPS, DNS, TLS — F5 iRules/profiles + AWS ALB + Route53 |
+| [`concepts/end-to-end-request.md`](./concepts/end-to-end-request.md) | "What happens when you curl https://X" — the #1 interview question, full walkthrough |
+| [`concepts/l3-network-layer.md`](./concepts/l3-network-layer.md) | ✅ IP, CIDR, subnetting, routing, BGP, hijacking, internet exchanges, anycast, latency |
+| [`concepts/l4-transport-layer.md`](./concepts/l4-transport-layer.md) | TCP/UDP, ports, handshake, ICMP, MTU — F5 TCP VIPs + AWS NLB |
+| [`concepts/l7-application-layer.md`](./concepts/l7-application-layer.md) | HTTP/1-2-3, HTTPS, TLS, ALPN, HSTS, session resumption, DNS — F5 + ALB + Route53 |
 | [`interview-questions.md`](./interview-questions.md) | 20 networking questions you will get asked |
 
 ---
