@@ -208,6 +208,82 @@ Second connection:  ClientHello + Session Ticket → ServerHello → Done (1 RTT
 
 **TLS 1.3 0-RTT:** even faster — client can send application data with the very first packet using a pre-shared key from the previous session. Trade-off: replay attack risk (same data could be replayed by an attacker). Not safe for non-idempotent requests.
 
+### Private CAs
+
+Public CAs (DigiCert, Let's Encrypt, AWS ACM) are pre-trusted by everyone because they're in the OS/browser trust store. But companies often run their own **private CA** for internal and B2B services.
+
+**Why run a private CA:**
+- Issue and revoke certs instantly, no third party, no cost per cert
+- Internal APIs that should never be hit by a random browser don't need a public CA
+- Enables mTLS — you control who gets client certificates (see below)
+
+**The catch:** your private CA is not in anyone's trust store. Any system that needs to connect to a service using your private certs must first **install your CA certificate manually** — otherwise they get:
+```
+SSL Error: certificate signed by unknown authority
+```
+
+This is why companies distribute their CA cert to partners and vendors. Installing it tells the client: "trust certs signed by this CA."
+
+```bash
+# Install a CA cert on Linux (so all apps trust it system-wide)
+cp company-ca.crt /usr/local/share/ca-certificates/
+update-ca-certificates
+
+# Or pass it per-request with curl
+curl --cacert company-ca.crt https://internal-api.example.com/
+```
+
+### mTLS — Mutual TLS
+
+Standard TLS is one-sided: the **server** proves its identity to the client. The client is anonymous.
+
+**Mutual TLS (mTLS)** requires **both sides** to present a certificate:
+
+```
+Standard TLS:                       mTLS:
+                                    
+Client → "prove you're example.com" Client → "prove you're example.com"
+Server presents cert ✅             Server presents cert ✅
+Connection established              Server → "now prove who you are"
+                                    Client presents its own cert ✅
+                                    Connection established
+```
+
+**Why this matters:** with mTLS, the server can reject any connection that doesn't hold a certificate *it issued*. Even if an attacker knows the URL and the port is open, they're blocked at the TLS layer — before a single HTTP request is processed. No cert = no connection.
+
+**The trust requirement — both sides need each other's CA:**
+
+```
+Company A runs API server       Company B is a vendor connecting to it
+
+Company A needs:                Company B needs:
+  - Its own server cert           - Company A's CA cert
+    (signed by A's private CA)      (to trust A's server cert)
+  - Company B's CA cert           - Its own client cert
+    (to verify B's client cert)     (signed by B's private CA)
+                                  - Company A's CA cert
+                                    (already covered above)
+```
+
+Each side must have:
+1. **Their own cert** (to present when asked)
+2. **The other side's CA cert** (to verify what they receive)
+
+**Real-world scenario:** a payment processor connecting to a gambling company's API. Both sides run their own internal CAs. The gambling company gives the payment processor their CA cert. The payment processor gives the gambling company their CA cert. Now both sides can verify each other at the TLS layer — no passwords, no API keys, the certificate *is* the authentication.
+
+**When mTLS breaks:**
+```
+Client gets:  "certificate required" or "bad certificate"
+→ Client forgot to present its client cert, or presented the wrong one
+
+Client gets:  "certificate signed by unknown authority"  
+→ Client doesn't have the server's CA cert installed
+
+Server gets:  "certificate signed by unknown authority"
+→ Server doesn't have the client's CA cert installed
+              (or the client cert was issued by a different CA than expected)
+```
+
 ### Common TLS issues SREs deal with
 ```
 Certificate expired         → HTTPS breaks entirely, users see browser warning
@@ -217,6 +293,8 @@ Mixed content               → HTTPS page loading HTTP resources → blocked by
 TLS version mismatch        → client needs TLS 1.2, server only offers 1.3 (or vice versa)
 ALPN mismatch               → server doesn't advertise h2, clients fall back to HTTP/1.1
 HSTS misconfigured          → max-age too long before you're sure HTTPS is stable
+mTLS — missing client cert  → server rejects connection before HTTP layer
+mTLS — CA not installed     → "unknown authority" on either side
 ```
 
 ---
