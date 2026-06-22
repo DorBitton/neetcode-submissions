@@ -16,22 +16,22 @@
 | 3 | Work with directories | ✅ | `pwd`, `cd`, `mkdir`, `rmdir` |
 | 4 | Create and delete files | ✅ | `touch`, `rm`, `cp`, `mv` |
 | 5 | Pipes | ✅ | `\|`, `head`, `tail`, `grep`, `wc` |
-| 6 | Reading the file | ⬜ | `cat`, `less`, `more`, `nano`, `vi` |
-| 7 | Copy and move files | ⬜ | `cp -r`, `mv`, renaming |
-| 8 | The top command | ⬜ | `top`, `htop`, system monitoring |
-| 9 | The ps command | ⬜ | `ps`, `ps aux`, process listing |
-| 10 | Create aliases | ⬜ | `alias`, `.bashrc`, `.zshrc` |
-| 11 | Work with users | ⬜ | `useradd`, `usermod`, `passwd`, `groups` |
-| 12 | Your work history | ⬜ | `history`, `!!`, `!n`, Ctrl+R |
+| 6 | Reading the file | ✅ | `cat`, `less`, `more`, `nano`, `vi` |
+| 7 | Copy and move files | ✅ | `cp -r`, `mv`, renaming |
+| 8 | The top command | ✅ | `top`, `htop`, system monitoring |
+| 9 | The ps command | ✅ | `ps`, `ps aux`, process listing |
+| 10 | Create aliases | ✅ | `alias`, `.bashrc`, `.zshrc` |
+| 11 | Work with users | ✅ | `useradd`, `usermod`, `passwd`, `groups` |
+| 12 | Your work history | ✅ | `history`, `!!`, `!n`, Ctrl+R |
 | 13 | Elevate privileges | ✅ | `sudo`, `su`, `/etc/sudoers` |
 | 14 | Work with logs | ✅ | `journalctl`, `/var/log/`, `tail -f` |
-| 15 | Streams | ⬜ | stdin/stdout/stderr, `>`, `>>`, `2>` |
-| 16 | Crontab | ⬜ | `crontab -e`, cron syntax, scheduling |
-| 17 | Know your files | ⬜ | `file`, `stat`, `du`, `df`, `find` |
-| 18 | Soft and hard links | ⬜ | `ln`, `ln -s`, inode sharing |
-| 19 | Inodes | ⬜ | what an inode is, `ls -i`, `stat` |
-| 20 | Permissions | ⬜ | `chmod`, `chown`, `chgrp`, octal notation |
-| — | Test your knowledge | ⬜ | — |
+| 15 | Streams | ✅ | stdin/stdout/stderr, `>`, `>>`, `2>` |
+| 16 | Crontab | ✅ | `crontab -e`, cron syntax, scheduling |
+| 17 | Know your files | ✅ | `file`, `stat`, `du`, `df`, `find` |
+| 18 | Soft and hard links | ✅ | `ln`, `ln -s`, inode sharing |
+| 19 | Inodes | ✅ | what an inode is, `ls -i`, `stat` |
+| 20 | Permissions | ✅ | `chmod`, `chown`, `chgrp`, octal notation |
+| — | Test your knowledge | ✅ | — |
 
 ---
 
@@ -39,20 +39,22 @@
 
 Real-world troubleshooting labs. Harder than the Pawel lessons — closer to what prepare.sh and SRE interviews test.
 
-| Scenario | Status | Concepts |
+**Workflow:** do the scenario first, then read the linked notes file to reinforce.
+
+| Scenario | Status | Notes file |
 |---|---|---|
-| Cron Job Troubleshooting | ⬜ | `crontab`, cron syntax, diagnosing broken jobs |
-| Exploring and Mounting Disks in Linux | ⬜ | `lsblk`, `df`, `mount`, `umount` |
-| Linux Disk Full: Log Management | ⬜ | `/var/log`, `logrotate`, disk space, `du` |
-| Linux Firewall Troubleshooting | ⬜ | `iptables`, blocked services, rule removal |
-| Linux Process Management & Resource Limits | ⬜ | `top`, `ps`, `kill`, CPU/memory limits, runaway processes |
-| Linux Systemd Service Debugging | ⬜ | `systemctl`, `journalctl`, unit files, service lifecycle |
-| Linux Troubleshooting: Backup and Restore | ⬜ | `tar`, `rsync`, corrupted backups, restore |
-| Linux User, Group, and Permissions Troubleshooting | ⬜ | `useradd`, `chmod`, `ACL`, access debugging |
-| Log Mining with Grep and Awk | ⬜ | `grep`, `awk`, log patterns, column extraction |
-| Network Service Troubleshooting | ⬜ | `ss`, `netstat`, open ports, listening processes, connectivity |
-| SSH Hardening & Security Audit | ⬜ | `sshd_config`, key-based auth, security hardening |
-| Text Transformation with sed | ⬜ | `sed`, stream editing, find/replace, filtering |
+| Cron Job Troubleshooting | ⬜ | [`concepts/processes.md`](./concepts/processes.md) |
+| Exploring and Mounting Disks in Linux | ⬜ | [`concepts/disks.md`](./concepts/disks.md) |
+| Linux Disk Full: Log Management | ⬜ | [`concepts/logs.md`](./concepts/logs.md) |
+| Linux Firewall Troubleshooting | ⬜ | [`concepts/firewall.md`](./concepts/firewall.md) |
+| Linux Process Management & Resource Limits | ⬜ | [`concepts/processes.md`](./concepts/processes.md) |
+| Linux Systemd Service Debugging | ⬜ | [`concepts/systemd.md`](./concepts/systemd.md) |
+| Linux Troubleshooting: Backup and Restore | ⬜ | [`concepts/backup.md`](./concepts/backup.md) |
+| Linux User, Group, and Permissions Troubleshooting | ⬜ | [`concepts/users.md`](./concepts/users.md) |
+| Log Mining with Grep and Awk | ⬜ | [`concepts/text-processing.md`](./concepts/text-processing.md) |
+| Network Service Troubleshooting | ⬜ | [`concepts/network-tools.md`](./concepts/network-tools.md) |
+| SSH Hardening & Security Audit | ⬜ | [`concepts/ssh.md`](./concepts/ssh.md) |
+| Text Transformation with sed | ⬜ | [`concepts/text-processing.md`](./concepts/text-processing.md) |
 
 ---
 
@@ -73,6 +75,13 @@ Real-world troubleshooting labs. Harder than the Pawel lessons — closer to wha
 | [`concepts/processes.md`](./concepts/processes.md) | 8, 9, 16 | top, ps, cron, process management |
 | [`concepts/users.md`](./concepts/users.md) | 11, 13, 20 | Users, groups, sudo, permissions |
 | [`concepts/logs.md`](./concepts/logs.md) | 14 | /var/log files, journalctl, logrotate, real-world scenarios |
+| [`concepts/systemd.md`](./concepts/systemd.md) | Alexis | systemctl, unit files, service debugging, journalctl |
+| [`concepts/disks.md`](./concepts/disks.md) | Alexis | lsblk, df, mount, umount, fstab |
+| [`concepts/firewall.md`](./concepts/firewall.md) | Alexis | ufw, iptables, blocking/unblocking ports |
+| [`concepts/text-processing.md`](./concepts/text-processing.md) | Alexis | grep, awk, sed, cut — log analysis pipelines |
+| [`concepts/backup.md`](./concepts/backup.md) | Alexis | tar, rsync, restore, verification |
+| [`concepts/network-tools.md`](./concepts/network-tools.md) | Alexis | ss, nc, dig, curl, routing — host-level network debugging |
+| [`concepts/ssh.md`](./concepts/ssh.md) | Alexis | key-based auth, sshd_config, hardening, common lockout fixes |
 
 ### Interview Prep
 
