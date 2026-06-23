@@ -10,8 +10,9 @@
 | Subject | Resource | Status |
 |---|---|---|
 | DSA | NeetCode + hellointerview.com | 🔄 In progress — binary search section |
-| Linux | KillerCoda scenarios | 🔄 In progress — lesson 14 done (Pawel), Alexis scenarios not started |
-| Networking | L3 ✅ L4 🔄 L7 ⬜ | 🔄 In progress |
+| Linux | KillerCoda scenarios | 🔄 In progress — Pawel ✅ all 20, Alexis scenarios started |
+| Networking | L3 ✅ L4 ✅ L7 🔄 | 🔄 In progress |
+| Docker | KillerCoda scenarios | 🔄 In progress — fundamentals built, scenarios starting |
 | Everything else | — | ⬜ Not started |
 
 ---
@@ -44,8 +45,14 @@
 *Goal: be able to have a real technical conversation about each subject.*
 
 ### Docker
-- [ ] Find a KillerCoda Docker scenario or equivalent hands-on resource
-- [ ] Read `docker/concepts/` as you go
+- [x] Found KillerCoda Docker scenarios (10 scenarios)
+- [x] Read `docker/concepts/core-concepts.md` — containers vs VMs, images, layers, registries
+- [ ] KillerCoda Group 1: Building, CMD/ENTRYPOINT, COPY/ADD, best practices, updating
+- [ ] Read `docker/concepts/dockerfile.md`
+- [ ] KillerCoda Group 2: Port forwarding, network drivers
+- [ ] Read `docker/concepts/networking.md`
+- [ ] KillerCoda Group 3: Volumes, bind mounts, env vars
+- [ ] Read `docker/concepts/volumes.md`
 - [ ] Be able to: write a Dockerfile, run a container, set up networking between containers, use volumes
 - [ ] Answer `docker/interview-questions.md` out loud
 
