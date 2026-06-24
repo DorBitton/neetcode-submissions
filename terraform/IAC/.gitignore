@@ -1,0 +1,26 @@
+# Local .terraform directories (contains downloaded plugins/providers)
+.terraform/
+
+# Hide plan files as they can contain sensitive data in plain text
+*.tfplan
+
+# Prevent saving local state files if you aren't using a remote backend yet
+*.tfstate
+*.tfstate.*
+
+# Crash logs
+crash.log
+crash.*.log
+
+# Exclude all variable files that might contain secrets
+*.tfvars
+*.tfvars.json
+
+# Override files
+override.tf
+override.tf.json
+*_override.tf
+*_override.tf.json
+
+# .env files (if you use them for environment variables)
+.env
