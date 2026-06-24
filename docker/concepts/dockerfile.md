@@ -38,6 +38,122 @@ CMD ["node", "server.js"]
 
 ---
 
+## Layer caching — the most important build optimization
+
+Every Dockerfile instruction creates a layer. Docker caches each layer and reuses it on the next build — **unless something above it changed**, which invalidates it and everything below.
+
+### The problem
+
+```dockerfile
+FROM golang:1.20-alpine
+WORKDIR /src
+COPY . .              ← copies ALL source files
+RUN go mod download   ← downloads dependencies (30-60 seconds)
+RUN go build -o /bin/server ./cmd/server
+```
+
+What happens when you change one line in `main.go`:
+
+```
+Layer: FROM golang:1.20-alpine    ✅ cache hit
+Layer: WORKDIR /src               ✅ cache hit
+Layer: COPY . .                   ❌ cache miss — main.go changed
+Layer: RUN go mod download        ❌ must re-run (60 seconds wasted)
+Layer: RUN go build               ❌ must re-run
+```
+
+`go mod download` re-runs on **every single build**, even if `go.mod` never changed. You're re-downloading all dependencies because you changed a comment.
+
+### The fix — separate what changes at different rates
+
+```dockerfile
+FROM golang:1.20-alpine
+WORKDIR /src
+COPY go.mod go.sum ./   ← only the dependency manifest (rarely changes)
+RUN go mod download     ← cached until go.mod/go.sum actually changes
+COPY . .                ← source code (changes constantly)
+RUN go build -o /bin/server ./cmd/server
+```
+
+What happens now when you change `main.go`:
+
+```
+Layer: FROM golang:1.20-alpine    ✅ cache hit
+Layer: WORKDIR /src               ✅ cache hit
+Layer: COPY go.mod go.sum ./      ✅ cache hit (go.mod didn't change)
+Layer: RUN go mod download        ✅ cache hit — SKIPPED (60 seconds saved)
+Layer: COPY . .                   ❌ cache miss — expected, code changed
+Layer: RUN go build               ❌ must re-run — expected
+```
+
+Dependencies only re-download when `go.mod` or `go.sum` actually changes.
+
+### The mental model — pyramid of change frequency
+
+```
+RARELY CHANGES                        put near the top
+──────────────────────────────────────────────────────
+FROM base image
+OS packages (apt-get install)
+Language runtime
+Dependency manifest (go.mod, package.json, requirements.txt)
+Dependencies installed (go mod download, npm ci, pip install)
+──────────────────────────────────────────────────────
+CONSTANTLY CHANGES                    put near the bottom
+Your source code (COPY . .)
+Build step (go build, npm run build)
+```
+
+**Rule:** the higher in the Dockerfile, the less often it should change.
+
+### The same pattern in every language
+
+```dockerfile
+# Node.js
+COPY package*.json ./
+RUN npm ci
+COPY . .
+
+# Python
+COPY requirements.txt .
+RUN pip install -r requirements.txt
+COPY . .
+
+# Go
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+
+# Java (Maven)
+COPY pom.xml .
+RUN mvn dependency:go-offline
+COPY src ./src
+
+# Ruby
+COPY Gemfile Gemfile.lock ./
+RUN bundle install
+COPY . .
+```
+
+### Why this matters in real life
+
+In CI/CD, every push triggers a build. Without caching optimization:
+```
+Every push:  3-5 min (downloading all deps every time)
+```
+
+With caching:
+```
+Code change:   20-30 sec (deps cached, only recompile)
+go.mod change: 3-5 min   (deps must re-download — expected and correct)
+```
+
+50 engineers pushing 5 times/day × 4 minutes saved = **16+ hours of CI time saved per day**.
+
+**In interviews:** "how would you reduce CI build times?" → layer cache ordering is the first answer.
+
+---
+
 ## COPY vs ADD
 
 Both copy files into the image. **Default to COPY. ADD has hidden magic.**
