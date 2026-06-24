@@ -1,6 +1,6 @@
 # Docker Volumes and Storage
 
-> Containers are ephemeral — when they stop, their filesystem is gone. Volumes are how you persist data.
+> Containers are ephemeral — their filesystem vanishes when they're removed. Volumes are the USB drives you plug into them: data lives on the drive, not the container. Swap the container, plug in the same drive — your data is still there.
 
 ---
 
@@ -138,6 +138,19 @@ docker run -v $(pwd):/app alpine        # bind mount
 docker run --tmpfs /tmp alpine          # tmpfs
 docker run -v mydata:/data:ro alpine    # read-only
 ```
+
+---
+
+## Interview questions
+
+**"What happens to data when you remove a container?"**
+→ Lost — the container's writable layer is deleted. Data needs to live in a volume (or bind mount) to persist.
+
+**"When would you use a bind mount vs a named volume?"**
+→ Bind mount in development: mount your source code so changes reflect inside the container without rebuilding. Named volume in production: databases, uploads, any data that must outlive the container. Bind mounts expose the host filesystem, which is a security concern in prod.
+
+**"How do you share data between two containers?"**
+→ Mount the same named volume in both: `docker run -v shared:/data container-a` and `docker run -v shared:/data container-b`. Both see the same files.
 
 ---
 

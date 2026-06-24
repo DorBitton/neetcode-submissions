@@ -1,110 +1,304 @@
 # Dockerfiles — Building Images
 
-> The recipe for your image. Every instruction is a layer.
+> A Dockerfile is a recipe. Each line is one step. The final image is the printed recipe card. A running container is the dish you cooked from it.
 
 ---
 
-## Dockerfile structure
+## What is a Dockerfile?
+
+When you run `docker build`, Docker reads a file called `Dockerfile` (no extension) line by line and executes each instruction. Each instruction creates a **layer** stacked on top of the previous one.
+
+```
+Dockerfile line 1: FROM node:20-alpine   → [base layer: Node.js + Alpine Linux]
+Dockerfile line 2: WORKDIR /app          → [layer: set working directory]
+Dockerfile line 3: COPY package*.json ./ → [layer: dependency manifest]
+Dockerfile line 4: RUN npm ci            → [layer: node_modules installed]
+Dockerfile line 5: COPY . .              → [layer: your app code]
+Dockerfile line 6: CMD ["node", "app.js"]→ [metadata]
+                                           ──────────────────────
+                                           Final image = all layers stacked
+```
+
+The image is **read-only**. When you `docker run` it, Docker adds a thin writable layer on top. Stop and remove the container — that writable layer is gone. The image remains unchanged.
+
+---
+
+## The essential instructions
+
+Here's a full Dockerfile with every instruction you'll use 90% of the time:
 
 ```dockerfile
-# Base image — always start from something
+# Always the first line: which base image to start from
 FROM node:20-alpine
 
-# Metadata (optional)
-LABEL maintainer="dor@company.com"
-
-# Set working directory inside the container
+# Working directory inside the container — all paths below are relative to this
 WORKDIR /app
 
-# Copy dependency files first (layer cache trick)
+# Copy dependency manifest BEFORE source code (cache trick — explained later)
 COPY package*.json ./
 
-# Install dependencies
+# Install dependencies (runs during build, not at runtime)
 RUN npm ci --only=production
 
-# Copy the rest of the app
+# Now copy the rest of the app
 COPY . .
 
-# Runtime environment variable
+# Environment variables baked into the image (can be overridden at runtime)
 ENV NODE_ENV=production
 ENV PORT=3000
 
-# Expose documents the intended port (doesn't actually open it)
+# Documents which port this app listens on (metadata only — doesn't open it)
 EXPOSE 3000
 
 # What to run when the container starts
 CMD ["node", "server.js"]
 ```
 
+### Each instruction explained
+
+**`FROM`** — Every Dockerfile starts here. You pick a base image — a pre-built starting point. You never start from a blank OS unless you're doing advanced things.
+
+```dockerfile
+FROM node:20-alpine        # Node.js 20 on Alpine Linux (~40MB)
+FROM python:3.11-slim      # Python 3.11 on Debian Slim (~100MB)
+FROM golang:1.20-alpine    # Go compiler on Alpine (for building Go apps)
+FROM ubuntu:22.04          # Full Ubuntu (~80MB) — usually overkill
+```
+
+The name before the `:` is the image name, after is the tag (version). `latest` is the default if you omit the tag — avoid it in production, it changes without warning.
+
+**`WORKDIR`** — Sets the working directory inside the container for all subsequent instructions. Think of it as `mkdir -p /app && cd /app` that persists for the whole Dockerfile.
+
+```dockerfile
+WORKDIR /app    # creates /app if it doesn't exist, sets it as current dir
+```
+
+**`COPY`** — Copies files from your host machine into the image. First arg is the source (on your machine), second is the destination (in the image).
+
+```dockerfile
+COPY package.json ./          # copy one file into WORKDIR
+COPY src/ /app/src/           # copy a whole directory
+COPY . .                      # copy everything here → into WORKDIR
+COPY package*.json ./         # globs work
+```
+
+**`RUN`** — Executes a shell command during build time. This is how you install packages, compile code, create directories. Each `RUN` creates a new layer.
+
+```dockerfile
+RUN npm install
+RUN apt-get update && apt-get install -y curl
+RUN go build -o /bin/server ./cmd/server
+```
+
+**`EXPOSE`** — Documents which port the app listens on. It is **metadata only** — it does not actually open the port. You open ports with `-p` at runtime.
+
+```dockerfile
+EXPOSE 3000    # tells readers: this container listens on 3000
+               # to actually publish it: docker run -p 8080:3000 myapp
+```
+
+**`CMD`** — The default command when the container starts. Can be overridden at runtime. Explained in detail in the next section.
+
+```dockerfile
+CMD ["node", "server.js"]    # container starts → runs: node server.js
+```
+
+---
+
+## COPY vs ADD
+
+Both copy files into the image. **Always use COPY. ADD has hidden magic.**
+
+| | `COPY` | `ADD` |
+|---|---|---|
+| Copy local files | ✅ | ✅ |
+| Fetch from a URL | ❌ | ✅ (downloads it) |
+| Auto-extract tar archives | ❌ | ✅ (extracts automatically) |
+| Predictable | ✅ | ⚠️ the auto-extract surprises people |
+
+```dockerfile
+COPY app.py /app/          # explicit: copies the file as-is
+COPY src/ /app/src/
+
+ADD archive.tar.gz /app/   # auto-extracts: contents appear as /app/file1, /app/file2...
+                           # most people find this surprising
+```
+
+**Rule:** use `COPY` for everything. Use `ADD` only if you specifically need the auto-extract feature — which is rare.
+
+---
+
+## CMD vs ENTRYPOINT
+
+The most common Dockerfile interview question. Both define what runs when a container starts. The difference is how they handle runtime arguments.
+
+### CMD — the default command (replaceable)
+
+```dockerfile
+CMD ["node", "server.js"]
+```
+
+```bash
+docker run myapp                     # runs: node server.js      (the CMD)
+docker run myapp node --version      # CMD replaced: runs: node --version
+docker run myapp bash                # CMD replaced: runs: bash
+```
+
+CMD is **completely replaced** when you pass arguments to `docker run`. Use it for a sensible default that might be overridden.
+
+### ENTRYPOINT — the fixed executable (appended to, not replaced)
+
+```dockerfile
+ENTRYPOINT ["node"]
+```
+
+```bash
+docker run myapp                     # runs: node          (needs an argument)
+docker run myapp server.js           # runs: node server.js (argument appended)
+docker run myapp --version           # runs: node --version (argument appended)
+```
+
+Arguments to `docker run` are **appended** to ENTRYPOINT — the container always runs `node`.
+
+### ENTRYPOINT + CMD together — the standard pattern
+
+```dockerfile
+ENTRYPOINT ["node"]       # the container IS a node runner
+CMD ["server.js"]         # by default, run server.js
+```
+
+```bash
+docker run myapp                        # node server.js    (ENTRYPOINT + CMD combined)
+docker run myapp other.js               # node other.js     (CMD replaced by argument)
+docker run --entrypoint python myapp    # python            (override ENTRYPOINT itself)
+```
+
+**Mental model:**
+```
+ENTRYPOINT = what the container IS   (the program — not easily changed)
+CMD        = the default input       (what it processes by default — easily overridden)
+```
+
+**When to use which:**
+```
+CMD only          → flexible image where the exact command varies
+ENTRYPOINT only   → container wraps exactly one tool (a CLI binary)
+ENTRYPOINT + CMD  → fixed program, overridable defaults — the most common pattern
+```
+
+### Shell form vs Exec form — why the square brackets matter
+
+```dockerfile
+# Shell form — avoid for CMD/ENTRYPOINT
+CMD node server.js            # Docker actually runs: /bin/sh -c "node server.js"
+
+# Exec form — use this
+CMD ["node", "server.js"]     # Docker runs: node server.js   directly
+```
+
+**Why exec form matters:** with shell form, `docker stop` sends SIGTERM to `/bin/sh`, not to `node`. Your app never receives the shutdown signal and gets killed hard (SIGKILL) after the timeout. Exec form sends signals directly to your process — it can shut down gracefully.
+
+---
+
+## Environment Variables — ENV and ARG
+
+### ENV — runtime variables (live in the image)
+
+```dockerfile
+ENV NODE_ENV=production
+ENV DB_HOST=localhost
+ENV DB_PORT=5432
+```
+
+Available during build AND in the running container.
+
+```bash
+docker run -e NODE_ENV=staging myapp       # override one variable
+docker run --env-file .env myapp           # override from a file
+docker inspect myapp | grep -A5 Env        # see what's baked in
+```
+
+### ARG — build-time only (gone when build finishes)
+
+```dockerfile
+ARG APP_VERSION=1.0
+RUN echo "Building version $APP_VERSION"   # available here during build
+# APP_VERSION is NOT available in the running container
+```
+
+```bash
+docker build --build-arg APP_VERSION=2.0 .
+```
+
+ARG is for build-time configuration: version numbers, build flags, which registry to pull from.
+
+**Security:** never put secrets in ARG — they appear in `docker history`. Use runtime secrets management (K8s Secrets, AWS Secrets Manager) instead.
+
 ---
 
 ## Layer caching — the most important build optimization
 
-Every Dockerfile instruction creates a layer. Docker caches each layer and reuses it on the next build — **unless something above it changed**, which invalidates it and everything below.
+Every Dockerfile instruction creates a layer. Docker caches each layer and reuses it on the next build — **unless something above it changed**. A cache miss invalidates all layers below it too.
 
 ### The problem
 
 ```dockerfile
 FROM golang:1.20-alpine
 WORKDIR /src
-COPY . .              ← copies ALL source files
-RUN go mod download   ← downloads dependencies (30-60 seconds)
+COPY . .              # copies ALL source files, including main.go
+RUN go mod download   # downloads all dependencies (30-60 seconds)
 RUN go build -o /bin/server ./cmd/server
 ```
 
-What happens when you change one line in `main.go`:
+You change one comment in `main.go` and rebuild:
 
 ```
-Layer: FROM golang:1.20-alpine    ✅ cache hit
-Layer: WORKDIR /src               ✅ cache hit
-Layer: COPY . .                   ❌ cache miss — main.go changed
-Layer: RUN go mod download        ❌ must re-run (60 seconds wasted)
-Layer: RUN go build               ❌ must re-run
+FROM golang:1.20-alpine    ✅ cache hit
+WORKDIR /src               ✅ cache hit
+COPY . .                   ❌ cache miss — main.go changed
+RUN go mod download        ❌ must re-run   ← 60 seconds wasted every time
+RUN go build               ❌ must re-run
 ```
 
-`go mod download` re-runs on **every single build**, even if `go.mod` never changed. You're re-downloading all dependencies because you changed a comment.
+`go mod download` re-runs on every single commit, even when `go.mod` never changed.
 
-### The fix — separate what changes at different rates
+### The fix — copy slow-changing files before fast-changing ones
 
 ```dockerfile
 FROM golang:1.20-alpine
 WORKDIR /src
-COPY go.mod go.sum ./   ← only the dependency manifest (rarely changes)
-RUN go mod download     ← cached until go.mod/go.sum actually changes
-COPY . .                ← source code (changes constantly)
+COPY go.mod go.sum ./   # copy only the dependency manifest (rarely changes)
+RUN go mod download     # NOW this is cached until go.mod actually changes
+COPY . .                # source code (changes often — that's expected)
 RUN go build -o /bin/server ./cmd/server
 ```
 
-What happens now when you change `main.go`:
+Same `main.go` change now:
 
 ```
-Layer: FROM golang:1.20-alpine    ✅ cache hit
-Layer: WORKDIR /src               ✅ cache hit
-Layer: COPY go.mod go.sum ./      ✅ cache hit (go.mod didn't change)
-Layer: RUN go mod download        ✅ cache hit — SKIPPED (60 seconds saved)
-Layer: COPY . .                   ❌ cache miss — expected, code changed
-Layer: RUN go build               ❌ must re-run — expected
+FROM golang:1.20-alpine    ✅ cache hit
+WORKDIR /src               ✅ cache hit
+COPY go.mod go.sum ./      ✅ cache hit — go.mod didn't change
+RUN go mod download        ✅ cache hit — SKIPPED (60 seconds saved)
+COPY . .                   ❌ cache miss — expected, code changed
+RUN go build               ❌ must re-run — expected
 ```
 
-Dependencies only re-download when `go.mod` or `go.sum` actually changes.
-
-### The mental model — pyramid of change frequency
+### The pyramid — what belongs where
 
 ```
-RARELY CHANGES                        put near the top
-──────────────────────────────────────────────────────
+CHANGES LEAST → top of Dockerfile (cache stays warm)
+────────────────────────────────────────────────────
 FROM base image
-OS packages (apt-get install)
-Language runtime
-Dependency manifest (go.mod, package.json, requirements.txt)
-Dependencies installed (go mod download, npm ci, pip install)
-──────────────────────────────────────────────────────
-CONSTANTLY CHANGES                    put near the bottom
+OS-level packages (apt-get, apk)
+Language runtime configuration
+Dependency manifest (go.mod, package.json, requirements.txt, pom.xml)
+Dependencies installed (go mod download, npm ci, pip install, mvn)
+────────────────────────────────────────────────────
+CHANGES MOST → bottom of Dockerfile
 Your source code (COPY . .)
-Build step (go build, npm run build)
+Build output (go build, npm run build, tsc)
 ```
-
-**Rule:** the higher in the Dockerfile, the less often it should change.
 
 ### The same pattern in every language
 
@@ -135,155 +329,7 @@ RUN bundle install
 COPY . .
 ```
 
-### Why this matters in real life
-
-In CI/CD, every push triggers a build. Without caching optimization:
-```
-Every push:  3-5 min (downloading all deps every time)
-```
-
-With caching:
-```
-Code change:   20-30 sec (deps cached, only recompile)
-go.mod change: 3-5 min   (deps must re-download — expected and correct)
-```
-
-50 engineers pushing 5 times/day × 4 minutes saved = **16+ hours of CI time saved per day**.
-
-**In interviews:** "how would you reduce CI build times?" → layer cache ordering is the first answer.
-
----
-
-## COPY vs ADD
-
-Both copy files into the image. **Default to COPY. ADD has hidden magic.**
-
-| | `COPY` | `ADD` |
-|---|---|---|
-| Copy local files | ✅ | ✅ |
-| Copy from URL | ❌ | ✅ (downloads it) |
-| Auto-extract tar archives | ❌ | ✅ (extracts automatically) |
-| Predictable behavior | ✅ | ⚠️ (the tar magic surprises people) |
-
-```dockerfile
-COPY app.py /app/           # explicit, predictable
-COPY src/ /app/src/
-COPY package*.json ./       # glob works
-
-ADD https://example.com/file.tar.gz /tmp/    # downloads and extracts — use only for this
-ADD app.tar.gz /app/                         # extracts tar — rarely what you want
-```
-
-**Rule:** use `COPY` unless you specifically need `ADD`'s URL download or tar extraction. Using `ADD` for regular files is a Dockerfile smell.
-
----
-
-## CMD vs ENTRYPOINT
-
-The most common Dockerfile interview question. Both define what runs when a container starts. The difference is how they interact with arguments.
-
-### CMD — the default command (overridable)
-
-```dockerfile
-CMD ["node", "server.js"]
-```
-
-```bash
-docker run myapp                    # runs: node server.js
-docker run myapp node --version     # overrides CMD entirely: runs node --version
-```
-
-CMD is completely replaced if you pass a command to `docker run`. Use it when you want a sensible default that users might override.
-
-### ENTRYPOINT — the fixed executable (not overridable)
-
-```dockerfile
-ENTRYPOINT ["node"]
-```
-
-```bash
-docker run myapp                    # runs: node   (needs CMD or an argument)
-docker run myapp server.js          # runs: node server.js
-docker run myapp --version          # runs: node --version
-```
-
-Arguments to `docker run` are appended to ENTRYPOINT, not replace it. The container always runs `node something`.
-
-### ENTRYPOINT + CMD together — the standard pattern
-
-```dockerfile
-ENTRYPOINT ["node"]
-CMD ["server.js"]
-```
-
-```bash
-docker run myapp                    # runs: node server.js   (CMD is the default arg)
-docker run myapp other.js           # runs: node other.js    (CMD is overridden)
-docker run --entrypoint python myapp script.py  # override ENTRYPOINT entirely
-```
-
-**Mental model:**
-```
-ENTRYPOINT = the executable (what the container IS)
-CMD        = the default arguments (what it does by default)
-```
-
-**When to use which:**
-```
-CMD only        → flexible: a general-purpose image where the command varies
-ENTRYPOINT only → strict: the container is one specific tool (e.g. a CLI wrapper)
-ENTRYPOINT+CMD  → best of both: fixed executable, overridable default args
-```
-
-### Shell form vs Exec form
-
-```dockerfile
-# Shell form (DON'T use for ENTRYPOINT/CMD)
-CMD node server.js              # runs as: /bin/sh -c "node server.js"
-
-# Exec form (DO use)
-CMD ["node", "server.js"]       # runs directly, no shell wrapper
-```
-
-**Why exec form matters:** with shell form, `docker stop` sends SIGTERM to `/bin/sh`, not to your app. Your app never gets the signal and is eventually killed with SIGKILL after the grace period. Exec form sends signals directly to your process.
-
----
-
-## Environment Variables — ENV and ARG
-
-### ENV — runtime variables (persisted in the image)
-
-```dockerfile
-ENV NODE_ENV=production
-ENV DB_HOST=localhost
-ENV DB_PORT=5432
-```
-
-Available during build and at runtime inside the container.
-
-```bash
-docker run -e NODE_ENV=staging myapp        # override at runtime
-docker run --env-file .env myapp            # load from file
-```
-
-```bash
-docker inspect myapp | grep -A5 Env        # see what ENVs are set
-```
-
-### ARG — build-time only (not persisted)
-
-```dockerfile
-ARG APP_VERSION=1.0
-RUN echo "Building version $APP_VERSION"
-```
-
-```bash
-docker build --build-arg APP_VERSION=2.0 .
-```
-
-ARG values are NOT available in the running container. Use them for build-time configuration (version numbers, build flags).
-
-**Security:** don't use ARG for secrets — they appear in `docker history`. Use secrets management at runtime instead.
+**Interview answer for "how do you reduce CI build times?":** layer cache ordering — copy dependency manifests before source code so dependency installation is cached across code changes.
 
 ---
 
@@ -292,177 +338,166 @@ ARG values are NOT available in the running container. Use them for build-time c
 ### 1. Use a minimal base image
 
 ```dockerfile
-# ❌ Big
+# ❌ Heavy — ~80MB of OS overhead, large attack surface
 FROM ubuntu:22.04
 
-# ✅ Much smaller
-FROM python:3.11-alpine          # alpine = minimal Linux (~5MB vs ~70MB)
-FROM python:3.11-slim            # slim = stripped debian (~45MB)
+# ✅ Minimal
+FROM python:3.11-alpine     # Alpine Linux + Python
+FROM python:3.11-slim       # Slim Debian — better glibc compatibility
 FROM node:20-alpine
 ```
 
-### 2. Layer cache ordering — least changed to most changed
+Smaller base = smaller image = faster registry pulls = smaller attack surface.
+
+### 2. Combine RUN commands to reduce layers
 
 ```dockerfile
-# ❌ Bad — app code changes, so ALL layers below rebuild every time
-FROM node:20-alpine
-COPY . .
-RUN npm install
-
-# ✅ Good — dependencies cached separately from code
-FROM node:20-alpine
-COPY package*.json ./      ← only changes when deps change
-RUN npm ci
-COPY . .                   ← changes every time, but only this layer rebuilds
-```
-
-### 3. Combine RUN commands to reduce layers
-
-```dockerfile
-# ❌ 3 layers
+# ❌ Three separate layers — apt cache persists in layer 1 forever
 RUN apt-get update
 RUN apt-get install -y curl
 RUN rm -rf /var/lib/apt/lists/*
 
-# ✅ 1 layer, same result
+# ✅ One layer — cleanup is in the same layer that created the cache
 RUN apt-get update \
     && apt-get install -y curl \
     && rm -rf /var/lib/apt/lists/*
 ```
 
-### 4. Multi-stage builds — don't ship build tools
+If you clean up in a separate RUN, the garbage is still in the prior layer — it's baked into the image.
 
-The problem: compiling Go/Java/Rust/TypeScript requires a compiler, build tools, and source code. None of that should be in a production image. Multi-stage builds solve this by using one image to build and a different, minimal image to run.
+### 3. Multi-stage builds — don't ship your build tools
+
+**The problem:** compiling Go, Java, TypeScript, Rust requires a compiler, build tools, and source code. None of that should exist in a production image.
+
+**The factory analogy:** a car factory has enormous machinery. When the car is done, you ship the car — not the factory. Multi-stage builds let you compile in a "factory" stage and ship only the output.
 
 ```dockerfile
-# Stage 1: build (big image, has compiler)
+# Stage 1: the factory (big — has the Go compiler)
 FROM golang:1.20-alpine AS builder
 WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
 COPY . .
-RUN go build -o /bin/server ./cmd/server
+RUN CGO_ENABLED=0 go build -o /bin/server ./cmd/server
 
-# Stage 2: runtime (tiny image, has nothing but the binary)
+# Stage 2: the product (tiny — has only the compiled binary)
 FROM scratch
 COPY --from=builder /bin/server /bin/server
 ENTRYPOINT ["/bin/server"]
 ```
 
-`COPY --from=builder` pulls a file from a previous stage into the current one. The final image contains **only what you COPY into it** from prior stages. No compiler, no source code, no Go runtime, no shell — just the binary.
+`COPY --from=builder /bin/server /bin/server` pulls the compiled binary out of the builder stage. The final image contains **only what you explicitly COPY into it** — no compiler, no source code, no Go runtime, no shell.
 
-### FROM scratch — the empty image
+**`FROM scratch` — the zero-byte starting point:**
 
-`scratch` is a special Docker keyword meaning "start from nothing." Literally an empty filesystem.
-
-```
-FROM golang:1.20-alpine   → ~250MB (Go compiler + Alpine Linux)
-FROM alpine               → ~5MB   (minimal Linux, has shell, package manager)
-FROM scratch              → 0MB    (truly empty — no OS at all)
-```
-
-**This only works for statically compiled binaries.** Go (with CGO disabled) and Rust compile to a single self-contained binary with no external library dependencies. The binary runs on any Linux kernel without needing libc, glibc, or any OS utilities.
-
-```bash
-# Go: build a static binary (no external dependencies)
-CGO_ENABLED=0 go build -o /bin/server ./cmd/server
-```
-
-The result:
+`scratch` is a special Docker keyword meaning "start from an empty filesystem." Literally 0 bytes.
 
 ```
-golang:1.20-alpine + your app    → ~300MB
-scratch + your compiled binary   → ~10MB   (just the binary itself)
+Stage 1 (builder):   ~300MB — Go compiler + Alpine + source code + binary
+Final image:          ~10MB — just the compiled binary
+
+30x smaller.
 ```
 
-A 30x size reduction. And this is what the KillerCoda scenario is asking you to build.
+This works because a Go binary compiled with `CGO_ENABLED=0` is **statically linked** — it contains everything it needs and runs directly on the Linux kernel without needing libc, glibc, or any OS utilities.
 
-### Base image comparison — choose the right runtime base
+**Base image comparison:**
 
-| Base | Size | Has shell | Has package manager | Use when |
+| Base | Size | Has shell | Package manager | Use when |
 |---|---|---|---|---|
-| `scratch` | 0 | ❌ | ❌ | Statically compiled Go/Rust binaries |
-| `alpine` | ~5MB | ✅ (sh) | ✅ (apk) | Most apps — tiny, debuggable |
+| `scratch` | 0 | ❌ | ❌ | Static Go/Rust binaries |
+| `alpine` | ~5MB | ✅ (sh) | ✅ (apk) | Most apps — tiny, still debuggable |
 | `debian-slim` | ~80MB | ✅ | ✅ (apt) | When alpine has glibc compatibility issues |
-| `ubuntu` | ~80MB | ✅ | ✅ (apt) | When you need full OS tooling |
-| Full language image | 300MB+ | ✅ | ✅ | Never in production |
+| `ubuntu` | ~80MB | ✅ | ✅ (apt) | Full OS tooling needed |
+| Full language base | 300MB+ | ✅ | ✅ | Never in production |
 
-### Security angle — scratch has no attack surface
+**Security bonus:** a `scratch` container has no shell. If an attacker exploits it, they land inside a binary with nothing to work with — no `bash`, no `curl`, no `apt`. That's a real security improvement for public-facing services.
 
+**Why image size matters in ECS/EKS:**
 ```
-FROM ubuntu-based image:
-  Has bash → attacker can exec in and run commands
-  Has curl/wget → attacker can download tools
-  Has apt → attacker can install packages
-  Has /etc/passwd, cron, sshd...
-
-FROM scratch:
-  No shell → docker exec -it container bash → Error: no such file
-  No package manager
-  No utilities
-  Just your binary
+300MB image → scale-out event → EC2 node pulls from ECR → 30-60 second cold start
+ 10MB image → same event                                → 2-3 second cold start
 ```
+During a traffic spike when you need 20 new containers immediately, that difference is felt.
 
-If a container running on `scratch` is compromised, the attacker is inside a binary with nothing else available. This is a meaningful security improvement, especially for public-facing services.
+### 4. Build multiple images from one Dockerfile
 
-### Named stages and --target
+Sometimes a single repo produces multiple artifacts — a server binary and a client binary, or multiple microservices that share build dependencies. Instead of maintaining separate Dockerfiles and re-downloading the entire dependency tree multiple times, define multiple named final stages in one file:
 
 ```dockerfile
-FROM golang:1.20 AS deps
+# Shared build stage — compiled once, reused by both finals
+FROM golang:1.20-alpine AS builder
+WORKDIR /src
 COPY go.mod go.sum ./
 RUN go mod download
-
-FROM deps AS builder          # ← build on top of deps stage
 COPY . .
-RUN go build -o /bin/server .
+RUN CGO_ENABLED=0 go build -o /bin/server ./cmd/server
+RUN CGO_ENABLED=0 go build -o /bin/client ./cmd/client
 
-FROM scratch AS production    # ← final runtime
+# Final image 1: just the server
+FROM scratch AS run-server
 COPY --from=builder /bin/server /bin/server
 ENTRYPOINT ["/bin/server"]
+
+# Final image 2: just the client
+FROM scratch AS run-client
+COPY --from=builder /bin/client /bin/client
+ENTRYPOINT ["/bin/client"]
 ```
+
+Build each image separately with `--target`:
 
 ```bash
-# Build only up to a specific stage (useful in CI)
-docker build --target builder -t myapp:builder .   # stop at builder stage
-docker build --target production -t myapp:prod .   # full build
+docker build --target run-server -t myapp:server .
+docker build --target run-client -t myapp:client .
 ```
 
-`--target` is useful in CI pipelines when you want to run tests inside the builder stage before producing the final image.
+**What makes this efficient:** when you run the second `docker build`, the `builder` stage is already cached. Docker skips downloading Go modules and skips compilation — it jumps straight to `FROM scratch AS run-client` and copies the already-built binary. You pay the build cost once; you get two independent production-ready images.
 
-### Real-world size comparison (Go example)
-
+**Real CI pattern:**
 ```bash
-docker build -t server-1 .                     # before (no multi-stage, full golang base)
-docker build -t server-2 -f Dockerfile.multi . # after (multi-stage + scratch)
-
-docker images | grep server
-# server-1    300MB+
-# server-2    ~10MB
+# Both commands below hit the builder cache — total time: ~2 seconds
+docker build --target run-server -t $ECR_URL/myapp:server-$SHA .
+docker build --target run-client -t $ECR_URL/myapp:client-$SHA .
 ```
 
-In ECS/EKS, an EC2 node that needs to pull `server-1` during a scale-out event takes 30-60 seconds. `server-2` takes 2-3 seconds. During a traffic spike, that difference matters.
+**Interview framing:** "We had 6 Go microservices in one repo — one Dockerfile, 6 `--target` stages. CI produced all 6 images in under 2 minutes because the shared build stage was cached."
 
 ### 5. Non-root user
 
+Containers run as root by default. If the container is compromised, the attacker has root on the container filesystem.
+
 ```dockerfile
+# Alpine
 RUN addgroup -S appgroup && adduser -S appuser -G appgroup
+USER appuser
+
+# Debian/Ubuntu
+RUN groupadd -r appgroup && useradd -r -g appgroup appuser
 USER appuser
 ```
 
-Running as root inside a container is a security risk. If the container is compromised, the attacker has root on the container filesystem.
+In K8s, also enforce at the pod level:
+```yaml
+securityContext:
+  runAsNonRoot: true
+  runAsUser: 1000
+```
 
 ### 6. .dockerignore
 
 ```
-# .dockerignore
+# .dockerignore — like .gitignore for docker build context
 node_modules/
 .git/
 *.log
 .env
 tests/
+coverage/
+dist/
 ```
 
-Like `.gitignore` for Docker. Prevents large/sensitive files from being sent to the Docker daemon during `docker build`.
+Without this, `docker build .` sends **everything** in the directory to the Docker daemon — including `node_modules` (potentially 1GB+), `.git/`, and `.env` files with secrets. Always include `.dockerignore`.
 
 ---
 
@@ -470,9 +505,8 @@ Like `.gitignore` for Docker. Prevents large/sensitive files from being sent to 
 
 **ENV → K8s ConfigMap / Secret**
 
-In K8s, you don't hardcode ENV values in the Dockerfile for prod. Instead:
+In K8s, don't hardcode environment-specific values in the image. Inject at runtime:
 ```yaml
-# K8s passes env vars from ConfigMap/Secret at runtime
 env:
   - name: DB_HOST
     valueFrom:
@@ -486,19 +520,22 @@ env:
         key: db_password
 ```
 
-This keeps the image portable — same image, different config per environment.
+Same image, different config per environment (dev/staging/prod).
 
 **CMD/ENTRYPOINT → K8s command/args**
 
 ```yaml
-# Equivalent in K8s Pod spec
 containers:
   - name: app
     image: myapp:1.0
-    command: ["node"]        # = ENTRYPOINT
-    args: ["server.js"]      # = CMD
+    command: ["node"]        # equivalent to ENTRYPOINT
+    args: ["server.js"]      # equivalent to CMD
 ```
 
-**Multi-stage builds → ECR image size**
+**Multi-stage builds → ECR image size → cold start speed**
 
-Smaller images pull faster in ECS/EKS, especially during scale-out events when new EC2 nodes need to pull the image before they can serve traffic. A 50MB image vs a 500MB image is a real cold-start difference at scale.
+Smaller images pull faster from ECR during ECS/EKS scale-out. At a traffic spike, a 10MB image vs 300MB is the difference between new capacity in seconds vs minutes.
+
+**Build multiple images → separate ECR repos, independent deploys**
+
+Each `--target` image gets its own ECR repository and its own ECS task definition or K8s Deployment. The images are independent — roll out `server` without touching `client`, scale them differently, canary them separately.

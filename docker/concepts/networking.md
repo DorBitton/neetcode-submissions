@@ -1,12 +1,23 @@
 # Docker Networking
 
-> How containers talk to each other and to the outside world.
+> By default, containers are isolated — sealed boxes. Docker networking is the wiring that decides who can talk to whom.
 
 ---
 
 ## The mental model
 
-By default, containers are isolated — they can't reach each other or the internet unless you wire them up. Docker networking controls who can talk to whom.
+Think of Docker's bridge network as a private office floor. Containers on the same floor can reach each other freely. Containers on a different floor can't. The host machine is the building lobby — it connects to the outside world, and you control which rooms have a phone extension (port) that outsiders can dial.
+
+```
+                    Outside world (your browser, the internet)
+                             │
+                    Host machine (your laptop or EC2)
+                        │         │
+                  Port 8080  Port 5432           ← only exposed ports are reachable
+                        │         │
+                   Container A   Container B      ← bridge network: can talk to each other
+                                                  ← Container C (different network): isolated
+```
 
 ```
 Host machine
@@ -21,6 +32,8 @@ Host machine
 ## Port forwarding — exposing containers to the host
 
 Containers run in their own network namespace. To reach a container from your browser or from outside the host, you map a **host port** to a **container port**.
+
+**The hotel switchboard analogy:** the hotel has many rooms (containers) each with an internal phone extension. Outsiders call the main number and ask for a specific extension. Port forwarding is the switchboard — incoming calls on port 8080 get transferred to the container's port 80.
 
 ```bash
 docker run -p 8080:80 nginx        # host port 8080 → container port 80
@@ -149,6 +162,19 @@ docker run --network mynet --name web nginx
 docker exec web curl http://db:5432        # test DNS resolution
 docker exec web ping api                   # test reachability by name
 ```
+
+---
+
+## ## Interview questions
+
+**"Two containers on the same bridge network can't reach each other by name — why?"**
+→ The default bridge network has no DNS. Create a user-defined bridge (`docker network create`) — that gives you automatic DNS resolution by container name.
+
+**"What's the difference between EXPOSE and -p?"**
+→ `EXPOSE` is documentation only (tells readers the intended port). `-p` actually opens the port on the host. You need `-p` to make a container reachable from outside.
+
+**"How do containers talk to each other in production?"**
+→ In Docker: user-defined bridge network + container names as hostnames. In K8s: Services — each pod gets a ClusterIP Service, other pods reach it by service name via cluster DNS.
 
 ---
 
