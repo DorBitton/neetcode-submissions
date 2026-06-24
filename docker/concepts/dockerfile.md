@@ -332,22 +332,115 @@ RUN apt-get update \
 
 ### 4. Multi-stage builds — don't ship build tools
 
-```dockerfile
-# Stage 1: build
-FROM node:20 AS builder
-WORKDIR /app
-COPY . .
-RUN npm ci && npm run build     # compile, bundle, etc.
+The problem: compiling Go/Java/Rust/TypeScript requires a compiler, build tools, and source code. None of that should be in a production image. Multi-stage builds solve this by using one image to build and a different, minimal image to run.
 
-# Stage 2: runtime (only what's needed to run)
-FROM node:20-alpine
-WORKDIR /app
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-CMD ["node", "dist/server.js"]
+```dockerfile
+# Stage 1: build (big image, has compiler)
+FROM golang:1.20-alpine AS builder
+WORKDIR /src
+COPY go.mod go.sum ./
+RUN go mod download
+COPY . .
+RUN go build -o /bin/server ./cmd/server
+
+# Stage 2: runtime (tiny image, has nothing but the binary)
+FROM scratch
+COPY --from=builder /bin/server /bin/server
+ENTRYPOINT ["/bin/server"]
 ```
 
-The final image only contains the runtime stage. Build tools, source code, test files — gone. Result: images can be 10x smaller.
+`COPY --from=builder` pulls a file from a previous stage into the current one. The final image contains **only what you COPY into it** from prior stages. No compiler, no source code, no Go runtime, no shell — just the binary.
+
+### FROM scratch — the empty image
+
+`scratch` is a special Docker keyword meaning "start from nothing." Literally an empty filesystem.
+
+```
+FROM golang:1.20-alpine   → ~250MB (Go compiler + Alpine Linux)
+FROM alpine               → ~5MB   (minimal Linux, has shell, package manager)
+FROM scratch              → 0MB    (truly empty — no OS at all)
+```
+
+**This only works for statically compiled binaries.** Go (with CGO disabled) and Rust compile to a single self-contained binary with no external library dependencies. The binary runs on any Linux kernel without needing libc, glibc, or any OS utilities.
+
+```bash
+# Go: build a static binary (no external dependencies)
+CGO_ENABLED=0 go build -o /bin/server ./cmd/server
+```
+
+The result:
+
+```
+golang:1.20-alpine + your app    → ~300MB
+scratch + your compiled binary   → ~10MB   (just the binary itself)
+```
+
+A 30x size reduction. And this is what the KillerCoda scenario is asking you to build.
+
+### Base image comparison — choose the right runtime base
+
+| Base | Size | Has shell | Has package manager | Use when |
+|---|---|---|---|---|
+| `scratch` | 0 | ❌ | ❌ | Statically compiled Go/Rust binaries |
+| `alpine` | ~5MB | ✅ (sh) | ✅ (apk) | Most apps — tiny, debuggable |
+| `debian-slim` | ~80MB | ✅ | ✅ (apt) | When alpine has glibc compatibility issues |
+| `ubuntu` | ~80MB | ✅ | ✅ (apt) | When you need full OS tooling |
+| Full language image | 300MB+ | ✅ | ✅ | Never in production |
+
+### Security angle — scratch has no attack surface
+
+```
+FROM ubuntu-based image:
+  Has bash → attacker can exec in and run commands
+  Has curl/wget → attacker can download tools
+  Has apt → attacker can install packages
+  Has /etc/passwd, cron, sshd...
+
+FROM scratch:
+  No shell → docker exec -it container bash → Error: no such file
+  No package manager
+  No utilities
+  Just your binary
+```
+
+If a container running on `scratch` is compromised, the attacker is inside a binary with nothing else available. This is a meaningful security improvement, especially for public-facing services.
+
+### Named stages and --target
+
+```dockerfile
+FROM golang:1.20 AS deps
+COPY go.mod go.sum ./
+RUN go mod download
+
+FROM deps AS builder          # ← build on top of deps stage
+COPY . .
+RUN go build -o /bin/server .
+
+FROM scratch AS production    # ← final runtime
+COPY --from=builder /bin/server /bin/server
+ENTRYPOINT ["/bin/server"]
+```
+
+```bash
+# Build only up to a specific stage (useful in CI)
+docker build --target builder -t myapp:builder .   # stop at builder stage
+docker build --target production -t myapp:prod .   # full build
+```
+
+`--target` is useful in CI pipelines when you want to run tests inside the builder stage before producing the final image.
+
+### Real-world size comparison (Go example)
+
+```bash
+docker build -t server-1 .                     # before (no multi-stage, full golang base)
+docker build -t server-2 -f Dockerfile.multi . # after (multi-stage + scratch)
+
+docker images | grep server
+# server-1    300MB+
+# server-2    ~10MB
+```
+
+In ECS/EKS, an EC2 node that needs to pull `server-1` during a scale-out event takes 30-60 seconds. `server-2` takes 2-3 seconds. During a traffic spike, that difference matters.
 
 ### 5. Non-root user
 
