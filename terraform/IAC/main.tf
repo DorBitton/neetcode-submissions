@@ -16,11 +16,11 @@ provider "aws" {
 
 # 3. Resource Definitions (Outside the terraform block)
 resource "aws_instance" "example" {
-  ami           = "ami-0aba19e56f3eaec05"
-  instance_type = "t3.micro"
+  ami                    = "ami-0aba19e56f3eaec05"
+  instance_type          = "t3.micro"
   vpc_security_group_ids = [aws_security_group.instance.id]
 
-user_data = <<-EOF
+  user_data = <<-EOF
 #!/bin/bash
 echo "Hello, World" > index.html
 nohup busybox httpd -f -p 8080 &
