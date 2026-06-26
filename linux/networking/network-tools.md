@@ -172,3 +172,187 @@ ss -tan | grep ESTABLISHED | wc -l  # total established
 ss -tan | grep TIME_WAIT | wc -l    # TIME_WAIT sockets (under churn)
 ss -tan state established '( dport = :80 )' | wc -l   # to port 80 specifically
 ```
+
+---
+
+## Packet loss diagnosis
+
+```bash
+ping -c 100 8.8.8.8                    # send 100 pings, get loss %
+ping -c 100 8.8.8.8 | tail -3         # see the summary line only
+mtr 8.8.8.8                           # live traceroute — watch which hop drops packets
+mtr --report 8.8.8.8                  # run 10 rounds, print report (good for logging)
+mtr --report --no-dns 8.8.8.8         # skip DNS resolution (faster)
+# Interpretation:
+# Loss at hop N but not hops after N = ICMP de-prioritized at that router (not real loss)
+# Loss at hop N AND all hops after = real packet loss at hop N
+```
+
+---
+
+## Network socket summary
+
+```bash
+ss -s                                  # socket summary: TCP states and counts
+# Shows: TCP: 42 (estab 18, closed 5, orphan 0, synrecv 0, timewait 5/0)
+ss -tan state time-wait | wc -l       # count TIME_WAIT sockets
+ss -tan state established | wc -l     # count ESTABLISHED connections
+ss -tan state syn-recv | wc -l        # count half-open (SYN flood indicator)
+```
+
+---
+
+## tcpdump — inspecting HTTP traffic
+
+```bash
+tcpdump -i eth0 port 80               # capture HTTP traffic on eth0
+tcpdump -i any port 80 -A             # any interface, print ASCII (readable HTTP bodies)
+tcpdump -i eth0 'tcp port 80 and host 10.0.0.5'   # filter to specific host
+tcpdump -w capture.pcap -i eth0 port 443   # write to file (open in Wireshark)
+tcpdump -i eth0 -nn port 80 -c 50    # -nn=no DNS resolution, capture 50 packets then stop
+# For HTTPS: you see the TLS handshake but not the content (encrypted)
+# Use openssl s_client or curl -v for HTTPS content inspection
+```
+
+---
+
+## Service port health check
+
+```bash
+nc -zv host 80                        # TCP connect test (z=no data, v=verbose)
+nc -zv host 22 80 443                 # test multiple ports at once
+nc -zvw3 host 5432                    # 3-second timeout
+timeout 3 bash -c 'echo > /dev/tcp/host/80' && echo open || echo closed  # no nc needed
+
+# Find and clean up a process holding a port:
+ss -tulpn | grep :8080                # find PID holding port 8080
+lsof -i :8080                         # alternative: lists process name and PID
+kill <PID>                            # stop it gracefully
+# Or if it's a service:
+systemctl stop <service>
+```
+
+---
+
+## conntrack — connection tracking
+
+```bash
+conntrack -L                           # list all tracked connections
+conntrack -L | grep ESTABLISHED | wc -l   # count established
+conntrack -L | grep SYN_SENT          # connections stuck in SYN (possible firewall drop)
+conntrack -D --dst-nat 10.0.0.5       # delete tracked connections to an IP
+
+# Connection table limits:
+cat /proc/sys/net/netfilter/nf_conntrack_count   # current tracked connections
+cat /proc/sys/net/netfilter/nf_conntrack_max     # maximum before dropping packets
+# "nf_conntrack: table full, dropping packet" → raise the max:
+sysctl -w net.netfilter.nf_conntrack_max=131072
+echo "net.netfilter.nf_conntrack_max=131072" >> /etc/sysctl.conf  # persist
+```
+
+---
+
+## MTU / VPN mismatch
+
+```bash
+ip link show eth0                      # MTU shown in output (default: mtu 1500)
+ip link set eth0 mtu 1400             # lower MTU (VPN tunnels need this)
+
+# Find path MTU — largest packet that gets through without fragmenting:
+ping -M do -s 1472 <destination>      # -M do = don't fragment, -s = payload bytes
+# 1472 bytes payload + 28 bytes IP/ICMP header = 1500 total
+# If it fails, lower -s until it succeeds → that number + 28 = your path MTU
+
+# VPN scenario: VPN interface has 1400 byte MTU but packets are 1500 → silent drops
+# Fix: lower MTU on the VPN interface
+ip link set tun0 mtu 1400
+```
+
+---
+
+## SYN flood detection
+
+```bash
+ss -s                                  # check SYN-RECV count in summary
+ss -tan state syn-recv | wc -l        # count half-open connections (should be near 0)
+netstat -n | grep SYN_RECV | wc -l    # older alternative
+
+# High SYN_RECV count = SYN flood attack in progress
+
+# Kernel-level defense:
+sysctl -w net.ipv4.tcp_syncookies=1             # enable SYN cookies (main defense)
+sysctl -w net.ipv4.tcp_max_syn_backlog=2048     # increase backlog queue
+
+# iptables rate limiting (limit new SYN packets per second):
+iptables -A INPUT -p tcp --syn -m limit --limit 5/s --limit-burst 10 -j ACCEPT
+iptables -A INPUT -p tcp --syn -j DROP
+```
+
+---
+
+## Network namespaces
+
+```bash
+ip netns list                          # list network namespaces
+ip netns add myns                      # create a namespace
+ip netns exec myns ip link list        # run a command inside the namespace
+ip netns exec myns ping 8.8.8.8       # test connectivity from inside namespace
+ip netns del myns                      # delete namespace
+
+# Connect two namespaces with a veth pair:
+ip link add veth0 type veth peer name veth1   # create pair
+ip link set veth1 netns myns                  # move veth1 into namespace
+ip addr add 192.168.100.1/24 dev veth0        # assign IP on host side
+ip netns exec myns ip addr add 192.168.100.2/24 dev veth1  # assign IP in namespace
+ip link set veth0 up
+ip netns exec myns ip link set veth1 up
+```
+
+---
+
+## Port exhaustion (ephemeral ports)
+
+```bash
+# Symptom: "Cannot assign requested address" — ran out of ephemeral ports
+ss -s                                  # check total socket counts
+cat /proc/sys/net/ipv4/ip_local_port_range   # current range (default: 32768–60999 = ~28K ports)
+
+# Fix 1: widen the port range
+sysctl -w net.ipv4.ip_local_port_range="10000 65000"   # ~55K ports
+
+# Fix 2: reduce TIME_WAIT hold time
+sysctl -w net.ipv4.tcp_fin_timeout=15
+sysctl -w net.ipv4.tcp_tw_reuse=1      # reuse TIME_WAIT sockets for new outbound connections
+
+# Check current TIME_WAIT count:
+ss -tan | grep TIME-WAIT | wc -l
+```
+
+---
+
+## Macvlan network configuration
+
+```bash
+# Macvlan: gives containers their own MAC address on the physical network
+# They appear as physical hosts to the network switch
+
+# Create a macvlan interface on the host:
+ip link add macvlan0 link eth0 type macvlan mode bridge
+ip addr add 192.168.1.50/24 dev macvlan0
+ip link set macvlan0 up
+
+# Docker macvlan network:
+docker network create -d macvlan \
+  --subnet 192.168.1.0/24 \
+  --gateway 192.168.1.1 \
+  -o parent=eth0 macvlan_net
+
+# Common fix: enable promiscuous mode on host NIC (required for macvlan to work):
+ip link set eth0 promisc on
+
+# Known limitation: containers on macvlan CANNOT communicate with the host directly
+# Fix: create a macvlan interface on the host in the same subnet
+ip link add macvlan-host link eth0 type macvlan mode bridge
+ip addr add 192.168.1.254/24 dev macvlan-host
+ip link set macvlan-host up
+```
