@@ -1,2 +1,5 @@
 # PDF books — do not commit copyrighted material
 *.pdf
+
+# Git worktrees
+.worktrees/
