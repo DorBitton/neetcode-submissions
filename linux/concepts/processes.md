@@ -11,8 +11,9 @@
 3. [ps — Snapshot of Processes](#3-ps--snapshot-of-processes)
 4. [Controlling Processes](#4-controlling-processes)
 5. [Background & Foreground Jobs](#5-background--foreground-jobs)
-6. [Crontab — Scheduling](#6-crontab--scheduling)
-7. [Command History & Aliases](#7-command-history--aliases)
+6. [Resource Limits — ulimit, nice, renice, ionice](#6-resource-limits--ulimit-nice-renice-ionice)
+7. [Crontab — Scheduling](#7-crontab--scheduling)
+8. [Command History & Aliases](#8-command-history--aliases)
 
 ---
 
@@ -149,7 +150,157 @@ fg %1                # bring it back to foreground
 
 ---
 
-## 6. Crontab — Scheduling
+## 6. Resource Limits — ulimit, nice, renice, ionice
+
+Linux gives you three levers to control how much CPU, memory, and disk I/O any process can consume.
+
+---
+
+### ulimit — Per-Process Hard Limits
+
+`ulimit` sets kernel-enforced limits on what a shell (and its child processes) can use. Think of it as a safety net so one runaway process can't take down the whole box.
+
+```bash
+ulimit -a                   # show all current limits
+ulimit -n                   # max open file descriptors (default 1024)
+ulimit -u                   # max number of processes a user can spawn
+ulimit -m                   # max memory in KB
+ulimit -c                   # core dump file size (0 = disabled)
+ulimit -t                   # max CPU time in seconds
+
+# Set limits for the current session
+ulimit -n 65535             # raise open files to 65535
+ulimit -n unlimited         # remove the limit (only root can exceed hard limit)
+```
+
+**Soft vs Hard limits:**
+- **Soft** — the current enforced value; a process can raise it up to the hard limit
+- **Hard** — the ceiling; only root can raise it
+
+```bash
+ulimit -Sn 4096             # set soft limit for open files
+ulimit -Hn 65535            # set hard limit for open files
+```
+
+**Persisting ulimits** — session limits vanish on logout. To persist:
+```bash
+# /etc/security/limits.conf  (for login sessions via PAM)
+# <domain>  <type>  <item>   <value>
+dor         soft    nofile   65535
+dor         hard    nofile   65535
+*           soft    core     0        # disable core dumps for everyone
+```
+
+**Why SREs care:** Databases and web servers routinely hit the default 1024 open-file limit under load. `Too many open files` errors are almost always a missing `ulimit -n` increase.
+
+---
+
+### CPU Priority — nice and renice
+
+Every process has a **niceness value** from **-20 (highest priority) to +19 (lowest priority)**. The default is 0.
+
+The kernel uses niceness to decide how much CPU time to allocate when processes compete. A "nicer" process voluntarily gives up CPU to others.
+
+```
+-20  ←  most CPU (least nice to others)
+  0  ←  default
++19  ←  least CPU (most nice to others)
+```
+
+```bash
+# Start a process with a specific niceness
+nice -n 10 ./backup.sh          # run backup.sh at low priority (nice=10)
+nice -n -5 ./realtime-app       # higher priority (need root for negative values)
+
+# Change priority of a RUNNING process
+renice -n 10 -p 1234            # lower priority of PID 1234 to nice=10
+renice -n 10 -u dor             # lower priority of ALL processes owned by dor
+renice -n -5 -p 5678            # raise priority (root only)
+```
+
+**See niceness in top/ps:**
+```bash
+top     # NI column = nice value, PR column = actual kernel priority (PR = 20 + NI)
+ps -eo pid,ni,comm              # show PID, nice value, command name
+```
+
+**Real-world patterns:**
+| Workload | Niceness | Why |
+|---|---|---|
+| Database (postgres, mysql) | -5 to 0 | Critical path — needs CPU |
+| Message queue (kafka, rabbit) | 0 | Normal priority |
+| Batch backup job | +10 to +15 | Should not compete with live traffic |
+| Log compression | +19 | Background, never urgent |
+
+---
+
+### I/O Priority — ionice
+
+CPU niceness controls CPU scheduling. **`ionice`** controls disk I/O scheduling — how the kernel's I/O scheduler (CFQ) orders disk requests.
+
+#### I/O Scheduling Classes
+
+| Class | Value | Meaning |
+|---|---|---|
+| **Idle** | 3 | Gets I/O only when nothing else needs the disk. Starved if disk is busy. |
+| **Best-effort** | 2 | Default for most processes. Shares disk fairly by niceness (0–7). |
+| **Realtime** | 1 | Gets disk access first, always. Use with care — can starve other processes. |
+| **None** | 0 | Inherits class from parent (usually becomes best-effort). |
+
+```bash
+ionice -c 3 -p 1234             # set PID 1234 to idle class (lowest I/O priority)
+ionice -c 2 -n 7 -p 1234       # best-effort, lowest priority within class (0=high, 7=low)
+ionice -c 1 -n 0 -p 5678       # realtime, highest priority (root only)
+
+# Start a new command with I/O priority set
+ionice -c 3 ./bulk-archive.sh   # run archiver at idle I/O priority
+ionice -c 1 -n 0 postgres       # give postgres real-time I/O (production pattern)
+```
+
+**What "Idle" means in practice:**
+
+When a process is set to I/O class **Idle**, the kernel's I/O scheduler will only give it disk access during gaps when no other process has a pending I/O request. On a busy server with active databases, a backup job at Idle can be nearly invisible to production traffic — it drip-feeds through leftover disk time.
+
+This is why `ionice -c 3` is the standard tool for:
+- Backup jobs (`rsync`, `tar`, `mysqldump`)
+- Log archival
+- Bulk file operations during business hours
+- Any find + copy that would otherwise spike disk wait
+
+**Finding I/O offenders:**
+
+```bash
+iotop                           # live view — like top, but for disk I/O (needs root)
+iotop -o                        # show only processes with active I/O
+iotop -b -n 5                   # non-interactive, 5 snapshots (good for scripting)
+
+# iotop output columns:
+# TID   PRIO   USER   DISK READ   DISK WRITE   SWAPIN   IO%   COMMAND
+# 8821  be/4   mysql  0.00 B/s    12.34 M/s    0.00%    45%   mysqld
+```
+
+**Combining CPU + I/O priority (the full pattern):**
+```bash
+# Demote a backup to low CPU and idle I/O simultaneously
+nice -n 19 ionice -c 3 ./backup.sh
+
+# Elevate a database process after the fact
+renice -n -5 -p $(pgrep postgres)
+ionice -c 1 -n 0 -p $(pgrep postgres)
+```
+
+#### The KillerCoda scenario answer
+
+When the scenario asks you to "reduce I/O of the top offender using idle priority":
+
+1. Find the offender: `iotop -o` or `iotop -b -n 1`
+2. Set its I/O to idle: `ionice -c 3 -p <PID>`
+3. Optionally lower CPU priority too: `renice -n 19 -p <PID>`
+4. Protect critical jobs: `ionice -c 1 -n 0 -p $(pgrep postgres)` and `ionice -c 1 -n 0 -p $(pgrep rabbitmq)`
+
+---
+
+## 7. Crontab — Scheduling
 
 Cron is the Linux task scheduler. `crontab` manages your scheduled jobs.
 
@@ -211,7 +362,7 @@ crontab -r           # remove ALL your cron jobs (careful!)
 
 ---
 
-## 7. Command History & Aliases
+## 8. Command History & Aliases
 
 ```bash
 history              # show numbered history of commands
