@@ -216,64 +216,124 @@ chown -R www-data /var/www/     # web server owns the web root
 
 ## 7. Inodes & Links
 
-### What is an inode?
-
-Every file is stored in two parts:
-1. **The data** — actual content on disk
-2. **The inode** — metadata: size, permissions, timestamps, owner, where data blocks are
-
-The filename is just a **directory entry** pointing to an inode.
-The inode doesn't store the filename — the directory does.
-
-```bash
-ls -i file.txt          # show inode number
-stat file.txt           # full inode info
-```
-
-### Hard links
-
-A hard link is another directory entry pointing to the **same inode**.
-
-```bash
-ln original.txt hardlink.txt     # create hard link
-ls -i original.txt hardlink.txt  # same inode number!
-```
-
-```
-directory entry "original.txt" ─┐
-                                  ├→ inode 1234 → data on disk
-directory entry "hardlink.txt" ─┘
-```
-
-- Deleting `original.txt` does NOT delete the data — inode still has a reference from `hardlink.txt`
-- Hard links can't cross filesystems
-- Hard links can't point to directories
-
-### Soft (symbolic) links
-
-A soft link is a file that contains a **path** pointing to another file.
-
-```bash
-ln -s /path/to/original link.txt   # create symbolic link
-ls -la link.txt                     # shows link.txt -> /path/to/original
-```
-
-```
-directory entry "link.txt" → inode 5678 → "/path/to/original"
-                                                      ↓
-directory entry "original.txt" → inode 1234 → data on disk
-```
-
-- If `original.txt` is deleted, the link is **broken** (dangling symlink)
-- Soft links can cross filesystems
-- Soft links can point to directories
-
-### Hard vs Soft comparison
-
 | | Hard link | Soft link |
 |---|---|---|
 | Same inode | Yes | No |
 | Survives original deletion | Yes | No |
 | Cross filesystem | No | Yes |
 | Can link to directory | No | Yes |
-| `ls -la` shows it as | regular file | `link -> target` |
+
+```bash
+ln original.txt hardlink.txt      # hard link — same inode, same data
+ln -s /path/to/original link.txt  # soft link — pointer to a path
+ls -i file                        # show inode number
+stat file                         # full inode metadata
+```
+
+---
+
+## 8. User Session Cleanup
+
+```bash
+who                                    # who is currently logged in and from where
+w                                      # who + what command they're running
+last | head -20                        # recent login history
+
+# Terminate sessions:
+loginctl list-sessions                 # list all active sessions with session IDs
+loginctl terminate-session <ID>        # kill a specific session
+loginctl terminate-user <username>     # kill all sessions for a user
+
+pkill -u <username>                    # kill all processes owned by a user
+pkill -9 -u <username>                 # force kill (if graceful didn't work)
+
+# Check if a user is still logged in after killing their processes:
+who | grep <username>
+```
+
+---
+
+## 9. Detect Login Time Violations
+
+```bash
+last                                   # login/logout history (from /var/log/wtmp)
+last username                          # history for one specific user
+last -n 20                             # last 20 entries
+last reboot                            # system reboot history
+
+lastlog                                # last login for EVERY user (from /var/log/lastlog)
+lastlog -u username                    # last login for one user
+lastlog | grep "Never logged in"       # accounts that have never been used
+
+# Find logins outside business hours (rough):
+last | awk '{print $1, $4, $5, $6, $7}' | grep -v "^$\|wtmp\|reboot"
+# Column 4 = day, column 5 = month, column 6 = date, column 7 = time
+# Look for weekend days (Sat, Sun) or odd hours (00:, 01:, 02:, 03:)
+
+# PAM time restrictions (enforce login hours):
+# /etc/security/time.conf
+# *;*;username;Al0800-1800   # allow only 8am-6pm
+```
+
+---
+
+## 10. Create Non-Interactive System User
+
+```bash
+# System users: run services, have no login shell, no interactive access
+useradd -r -s /sbin/nologin appuser              # -r = system (low UID), no login shell
+useradd -r -s /sbin/nologin -d /var/lib/myapp appuser  # with home dir for app data
+useradd -r -s /bin/false appuser                 # /bin/false also prevents login
+
+# Verify non-interactive:
+su - appuser       # should print: "This account is currently not available"
+grep appuser /etc/passwd   # shell field should be /sbin/nologin or /bin/false
+
+# Common pattern for a service:
+useradd -r -s /sbin/nologin -d /opt/myapp myapp
+chown -R myapp:myapp /opt/myapp        # service owns its own directory
+```
+
+---
+
+## 11. Find Files Owned by Non-Existent Users
+
+```bash
+# Files with no valid UID (owner was deleted, or UID mismatch after migration)
+find / -nouser 2>/dev/null             # files with no matching UID
+find / -nogroup 2>/dev/null            # files with no matching GID
+find / -nouser -o -nogroup 2>/dev/null # either condition
+
+# Restrict to specific filesystems (faster, avoids /proc /sys):
+find /home /var /opt -nouser 2>/dev/null
+
+# Take action: reassign ownership
+find / -nouser 2>/dev/null -exec chown root:root {} \;
+
+# After a user migration: find files that still belong to old UID numbers
+find / -uid 1005 2>/dev/null           # files owned by UID 1005 (even if user is gone)
+```
+
+---
+
+## 12. Credential Leak Detection
+
+```bash
+# Search config files for hardcoded credentials:
+grep -rE "password\s*=" /etc/ 2>/dev/null
+grep -rE "(password|passwd|secret|api_key|apikey|token|credential)\s*[=:]" \
+  /home/ /opt/ /var/www/ --include="*.conf" --include="*.yaml" --include="*.env" 2>/dev/null
+
+# Find sensitive file types:
+find / -name ".env" 2>/dev/null        # .env files (common secret store)
+find / -name "*.pem" 2>/dev/null       # private keys
+find / -name "id_rsa" 2>/dev/null      # SSH private keys
+find / -name "credentials" 2>/dev/null # AWS/cloud credentials
+
+# Check world-readable sensitive files (should NOT be world-readable):
+find /etc -name "*.conf" -perm -o+r 2>/dev/null | head -20
+
+# Check git history for accidentally committed secrets:
+git log -p | grep -iE "(password|secret|api_key|token)" | head -30
+# Or use git-secrets / truffleHog for thorough scanning
+```

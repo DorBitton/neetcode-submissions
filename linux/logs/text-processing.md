@@ -161,3 +161,42 @@ tail -f app.log | grep --line-buffered "ERROR"
 | `sed` | Find/replace text, delete lines, edit files in-place |
 | `cut` | Simple column extraction by delimiter |
 | `sort \| uniq -c` | Count occurrences of repeated lines |
+| `split` | Break large files into uploadable chunks |
+
+---
+
+## split — file partitioning
+
+```bash
+# split breaks a large file into smaller chunks
+# Useful for: uploading large files, parallel processing, staying under size limits
+
+# Split by size:
+split -b 100M largefile.tar.gz part_     # 100MB chunks named part_aa, part_ab, part_ac...
+split -b 500M dump.sql part_             # 500MB chunks
+split -b 1G backup.tar.gz chunk_         # 1GB chunks with prefix "chunk_"
+
+# Split by number of pieces:
+split -n 5 file.txt part_               # exactly 5 equal pieces
+
+# Split by line count:
+split -l 1000 access.log part_          # 1000 lines per file
+split -l 10000 large.csv chunk_         # 10000 lines per chunk
+
+# Add numeric suffix instead of alphabetic (part_00, part_01, ...):
+split -b 100M -d largefile.tar.gz part_
+
+# Reassemble:
+cat part_* > reassembled.tar.gz         # concatenate all parts in alphabetical order
+cat chunk_0* > reassembled.sql          # numeric suffix order
+
+# Verify integrity after reassemble:
+md5sum original.tar.gz reassembled.tar.gz   # should match
+sha256sum original.tar.gz reassembled.tar.gz
+
+# Practical pattern: split, upload, reassemble on remote:
+split -b 100M bigfile.tar.gz part_
+for f in part_*; do scp "$f" user@remote:/tmp/; done
+# On remote:
+cat /tmp/part_* > /tmp/bigfile.tar.gz
+```

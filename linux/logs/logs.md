@@ -249,3 +249,99 @@ Make journal persistent across reboots (not all distros default to this):
 mkdir -p /var/log/journal              # journal writes here if it exists
 systemctl restart systemd-journald
 ```
+
+---
+
+## Tracing file writes with inotifywait
+
+```bash
+# inotifywait watches files/directories for filesystem events in real time
+# Install: apt install inotify-tools
+
+inotifywait -m /var/log/app.log              # monitor one file (m = keep monitoring)
+inotifywait -m -r /var/log/                  # recursive — any event inside /var/log
+inotifywait -m -e modify,create /var/log/    # only specific events (modify or create)
+inotifywait -m -e modify /etc/nginx/nginx.conf  # watch a config file for changes
+
+# Events: access, modify, create, delete, moved_to, moved_from, attrib, close_write
+
+# One-shot: wait until file changes, then run a command
+inotifywait -e modify /var/log/app.log && echo "file changed"
+
+# Watch for config changes and reload on change:
+inotifywait -m -e close_write /etc/myapp/config.yml | while read; do
+  systemctl reload myapp
+done
+```
+
+---
+
+## lsof — finding locked and open log files
+
+```bash
+# A deleted log file that's still held open by a process doesn't free disk space
+# This is a common cause of "no space left on device" even after deleting log files
+
+lsof | grep deleted                    # find all deleted files still held open
+lsof +D /var/log                       # list all files open inside /var/log
+fuser /var/log/app.log                 # show PIDs using this exact file
+
+# Scenario: deleted nginx access.log but disk didn't free up
+lsof | grep "access.log.*deleted"      # confirm nginx still holds it open
+# Fix option 1: truncate the file (frees space without restart):
+> /proc/<PID>/fd/<FD>                  # truncate the specific file descriptor
+# Fix option 2: restart the service (closes the fd, file actually deleted):
+systemctl restart nginx
+# Fix option 3: send SIGHUP if service supports log reopen:
+kill -HUP <PID>
+```
+
+---
+
+## Real-time log timestamping
+
+```bash
+# Add timestamps to a command's output that doesn't include them natively
+
+# Using 'ts' from the moreutils package:
+./script.sh | ts '[%Y-%m-%d %H:%M:%S]'
+command 2>&1 | ts '[%H:%M:%S]'         # timestamp both stdout and stderr
+
+# Using awk (no extra packages needed):
+./script.sh | awk '{ print strftime("[%Y-%m-%d %H:%M:%S]"), $0; fflush() }'
+# fflush() prevents output buffering — critical for live monitoring
+
+# Timestamp lines as they arrive in a log file:
+tail -f /var/log/app.log | ts '[%Y-%m-%d %H:%M:%S]'
+
+# Write timestamped output to a file:
+./script.sh | ts '[%Y-%m-%d %H:%M:%S]' >> /var/log/timestamped.log
+```
+
+---
+
+## SLO error budget calculation from access logs
+
+```bash
+# SLO (Service Level Objective) example: 99.9% availability
+# Error budget = 0.1% of requests can be errors in the measurement window
+
+# Count errors and total requests from nginx access log:
+# nginx log format: IP - - [date] "METHOD /path HTTP/1.1" STATUS size
+total=$(wc -l < /var/log/nginx/access.log)
+errors=$(awk '$9 >= 500' /var/log/nginx/access.log | wc -l)
+echo "Total: $total, Errors: $errors"
+
+# Calculate error rate with awk (one pass):
+awk 'BEGIN{total=0; errors=0}
+     {total++; if($9>=500) errors++}
+     END{printf "Error rate: %.4f%%\nBudget remaining: %.4f%%\n",
+         errors/total*100, 0.1 - errors/total*100}' \
+  /var/log/nginx/access.log
+
+# Filter to a specific time window first:
+grep "26/Jun/2024:14:" /var/log/nginx/access.log | awk '$9>=500' | wc -l
+
+# Count by status code:
+awk '{print $9}' /var/log/nginx/access.log | sort | uniq -c | sort -rn
+```

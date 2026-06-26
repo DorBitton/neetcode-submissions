@@ -171,3 +171,60 @@ blkid /dev/sdb1             # get UUID
 echo "UUID=xxx /mnt/data ext4 defaults 0 2" >> /etc/fstab
 mount -a                    # test it
 ```
+
+## Inode exhaustion
+
+```bash
+# Inode exhaustion: disk has free space but you can't create new files
+# Error: "No space left on device" even though df -h shows space available
+
+df -i                                  # inode usage per filesystem
+df -i /var                             # check a specific filesystem
+# If Use% is 100% on inodes → inode exhaustion (not disk space)
+
+# Find the directory with the most files (the culprit):
+find / -xdev -printf '%h\n' | sort | uniq -c | sort -rn | head -20
+# -xdev = don't cross filesystem boundaries (important — stay on one fs)
+# Output: count  directory — highest count = where the files are
+
+# Common culprits:
+find /tmp -type f | wc -l             # temp files
+find /var/spool -type f | wc -l       # mail queue or print spool
+find /var/cache -type f | wc -l       # cache files
+
+# Fix: delete many small files
+find /tmp -type f -mtime +7 -delete              # delete tmp files older than 7 days
+find /var/spool/postfix -type f -delete          # clear mail queue (if applicable)
+find /var/cache/apt/archives -name "*.deb" -delete  # clear apt cache
+```
+
+## Disk quotas
+
+```bash
+# Quotas limit how much disk space or inodes a user/group can use
+# Requires filesystem mounted with usrquota/grpquota option
+
+# Check quotas:
+quota -u username                      # check quota for a specific user
+quota -g groupname                     # check group quota
+repquota -a                            # report on all users across all filesystems
+repquota /home                         # quota report for one filesystem
+
+# Configure quotas (requires root):
+edquota -u username                    # edit soft/hard limits for user (opens $EDITOR)
+edquota -g groupname                   # edit group quota
+edquota -t                             # set grace period
+
+# Quota limits:
+# Soft limit = warning threshold (user gets a grace period to reduce usage)
+# Hard limit = absolute maximum (writes fail when hit)
+
+# Enable quotas on a filesystem:
+quotaon /home                          # enable quotas
+quotaoff /home                         # disable quotas
+quotacheck -cug /home                  # create quota database files (first-time setup)
+
+# /etc/fstab must include quota options:
+# UUID=xxx /home ext4 defaults,usrquota,grpquota 0 2
+# After editing fstab: remount or reboot, then run quotacheck + quotaon
+```
