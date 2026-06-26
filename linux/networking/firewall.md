@@ -168,3 +168,78 @@ ufw status verbose | grep DENY
 ```bash
 iptables -L INPUT -n -v | grep "10.0.0.5"    # is this specific IP being dropped?
 ```
+
+---
+
+## iptables NAT and port forwarding
+
+```bash
+# Enable IP forwarding (required for any forwarding/NAT to work):
+sysctl -w net.ipv4.ip_forward=1
+echo "net.ipv4.ip_forward=1" >> /etc/sysctl.conf  # persist across reboots
+
+# Forward port 8080 on this host → port 80 on an internal server:
+iptables -t nat -A PREROUTING -p tcp --dport 8080 -j DNAT --to-destination 10.0.0.5:80
+iptables -A FORWARD -p tcp -d 10.0.0.5 --dport 80 -j ACCEPT
+# PREROUTING = applied before routing decision (for incoming packets)
+
+# Masquerade (SNAT) — needed so reply packets route back correctly:
+iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+
+# Load balance across two backends (round-robin with statistic module):
+iptables -t nat -A PREROUTING -p tcp --dport 80 \
+  -m statistic --mode nth --every 2 --packet 0 -j DNAT --to-destination 10.0.0.1:80
+iptables -t nat -A PREROUTING -p tcp --dport 80 -j DNAT --to-destination 10.0.0.2:80
+# First rule matches every 2nd packet starting from packet 0 → backend 1
+# Second rule catches the rest → backend 2
+
+# View NAT rules:
+iptables -t nat -L -n -v --line-numbers
+
+# Delete a NAT rule by number:
+iptables -t nat -D PREROUTING 2
+```
+
+---
+
+## Allow outbound SMTP (port 25)
+
+```bash
+# Check if outbound SMTP is blocked (cloud providers often block port 25 to prevent spam):
+nc -zv smtp.gmail.com 25              # "Connection refused" or timeout = blocked
+telnet smtp.gmail.com 25              # alternative test
+
+# Allow outbound port 25:
+iptables -A OUTPUT -p tcp --dport 25 -j ACCEPT
+ufw allow out 25/tcp                  # if using ufw
+
+# Verify:
+iptables -L OUTPUT -n -v | grep 25
+```
+
+---
+
+## Restore blocked SSH access
+
+```bash
+# Scenario: accidentally blocked SSH while connected — act fast (you still have a session)
+
+# Option 1 — insert an ACCEPT rule at the top (before any DROP rules):
+iptables -I INPUT 1 -p tcp --dport 22 -j ACCEPT   # -I inserts at position 1 (top)
+ufw insert 1 allow 22/tcp                           # ufw equivalent
+
+# Option 2 — if ufw is the problem, disable it entirely:
+ufw disable                           # disables ufw, all traffic allowed through iptables defaults
+
+# Option 3 — if locked out completely (no session open):
+# Use cloud provider's web console / serial console access
+# Then: iptables -F (flush all) or ufw allow 22 && ufw reload
+
+# Prevention (always do this before enabling ufw):
+ufw allow 22/tcp && ufw enable        # allow SSH first, THEN enable
+sshd -t                               # always validate sshd config before restarting
+
+# Check what's blocking you:
+iptables -L INPUT -n -v --line-numbers | grep -E "DROP|REJECT|22"
+ufw status verbose | grep -E "DENY|22"
+```
