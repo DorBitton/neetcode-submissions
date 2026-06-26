@@ -12,6 +12,18 @@ Jump to:
 - [Scheduling](#scheduling)
 - [Getting Help](#getting-help)
 - [Flags Cheat Sheet](#flags-cheat-sheet)
+- [TLS / Certificates](#tls--certificates)
+- [I/O Priority](#io-priority)
+- [lsof](#lsof)
+- [Disk Quotas](#disk-quotas)
+- [Network Namespaces](#network-namespaces)
+- [conntrack](#conntrack)
+- [inotifywait](#inotifywait)
+- [Port & Socket Tuning](#port--socket-tuning)
+- [User Sessions & Login History](#user-sessions--login-history)
+- [Routing](#routing)
+- [DNS](#dns)
+- [tcpdump](#tcpdump)
 
 ---
 
@@ -346,3 +358,189 @@ ls /var/log/                  # see available log files
 | `-p` | create parents, no error if exists | `mkdir` |
 | `-s` | symbolic link | `ln` |
 | `-e` | edit | `crontab` |
+
+---
+
+## TLS / Certificates
+
+```bash
+# Inspect a certificate
+openssl x509 -in cert.pem -text -noout          # full details
+openssl x509 -in cert.pem -noout -dates         # expiry only
+openssl x509 -in cert.pem -noout -subject       # CN + SANs
+
+# Check a live server
+openssl s_client -connect example.com:443       # TLS handshake
+openssl s_client -connect example.com:443 -showcerts  # full chain
+echo | openssl s_client -connect host:443 2>/dev/null | openssl x509 -noout -dates
+
+# Generate key + CSR
+openssl genrsa -out server.key 2048
+openssl req -new -key server.key -out server.csr
+
+# Self-signed cert
+openssl req -x509 -newkey rsa:2048 -keyout key.pem -out cert.pem -days 365 -nodes
+
+# Fix chain
+cat server.crt intermediate.crt > fullchain.pem
+openssl verify -CAfile ca-bundle.crt fullchain.pem
+
+# Key permissions
+chmod 600 server.key
+```
+
+---
+
+## I/O Priority
+
+```bash
+ionice -c 3 -p <PID>             # set to idle I/O class (lowest — gets disk only when nothing else needs it)
+ionice -c 2 -n 7 -p <PID>       # best-effort, lowest within class
+ionice -c 1 -n 0 -p <PID>       # realtime (highest, root only)
+ionice -c 3 ./backup.sh          # start a new command at idle I/O priority
+
+iotop                            # live I/O monitor (like top for disk)
+iotop -o                         # show only processes with active I/O
+iotop -b -n 5                    # non-interactive, 5 snapshots
+```
+
+---
+
+## lsof
+
+```bash
+lsof -p <PID>                    # all files open by a process
+lsof +D /var/log                 # what has files open in this directory?
+lsof | grep deleted              # files deleted but still held open (disk leak)
+lsof -i :80                      # what process has port 80 open?
+ls /proc/<PID>/fd | wc -l       # count open file descriptors for a process
+```
+
+---
+
+## Disk Quotas
+
+```bash
+quota -u username                # check quota for a user
+repquota -a                      # quota report for all users
+edquota -u username              # edit user's quota limits
+quotaon /home                    # enable quotas on filesystem
+quotacheck -cug /home            # create quota database (first-time setup)
+# fstab needs: UUID=xxx /home ext4 defaults,usrquota,grpquota 0 2
+```
+
+---
+
+## Network Namespaces
+
+```bash
+ip netns list                    # list namespaces
+ip netns add myns                # create namespace
+ip netns exec myns ip link list  # run command inside namespace
+ip netns del myns                # delete namespace
+
+# Connect two namespaces with veth pair:
+ip link add veth0 type veth peer name veth1
+ip link set veth1 netns myns
+ip addr add 192.168.100.1/24 dev veth0
+ip netns exec myns ip addr add 192.168.100.2/24 dev veth1
+```
+
+---
+
+## conntrack
+
+```bash
+conntrack -L                     # list all tracked connections
+conntrack -L | grep ESTABLISHED | wc -l  # count established
+cat /proc/sys/net/netfilter/nf_conntrack_count  # current tracked connections
+cat /proc/sys/net/netfilter/nf_conntrack_max    # limit
+sysctl -w net.netfilter.nf_conntrack_max=131072  # raise limit
+```
+
+---
+
+## inotifywait
+
+```bash
+inotifywait -m /var/log/app.log              # watch one file
+inotifywait -m -r /var/log/                  # recursive directory watch
+inotifywait -m -e modify,create /etc/nginx/  # specific events only
+inotifywait -e modify file && echo "changed" # one-shot: wait then continue
+```
+
+---
+
+## Port & Socket Tuning
+
+```bash
+cat /proc/sys/net/ipv4/ip_local_port_range   # current ephemeral port range
+sysctl -w net.ipv4.ip_local_port_range="10000 65000"  # widen range
+
+sysctl -w net.ipv4.tcp_fin_timeout=15        # reduce TIME_WAIT hold time
+sysctl -w net.ipv4.tcp_tw_reuse=1            # reuse TIME_WAIT sockets
+
+sysctl -w net.ipv4.tcp_syncookies=1          # enable SYN cookie defense
+
+ss -tan | grep TIME-WAIT | wc -l             # count TIME_WAIT sockets
+ss -tan state syn-recv | wc -l              # count half-open (SYN flood indicator)
+```
+
+---
+
+## User Sessions & Login History
+
+```bash
+who                              # who is logged in
+w                                # who + what they're doing
+last                             # login history (all users)
+last reboot                      # reboot history
+lastlog                          # last login for every user
+
+loginctl list-sessions           # active sessions (systemd)
+loginctl terminate-session <ID>  # kill a session
+loginctl terminate-user <user>   # kill all sessions for a user
+pkill -u <username>              # kill all processes owned by user
+```
+
+---
+
+## Routing
+
+```bash
+ip route show                    # routing table
+ip route get 8.8.8.8            # which route handles this destination?
+ip route add 10.0.0.0/16 via 192.168.1.1   # add route
+ip route add default via 192.168.1.1        # set default gateway
+ip route del 10.0.0.0/16        # delete route
+```
+
+---
+
+## DNS
+
+```bash
+dig example.com                  # A record lookup
+dig example.com MX               # mail records
+dig -x 8.8.8.8                   # reverse lookup (PTR)
+dig @8.8.8.8 example.com        # query specific DNS server
+dig +short example.com           # just the IP
+dig +trace example.com           # full resolution chain from root
+dig @<primary> example.com AXFR  # zone transfer test
+
+cat /etc/resolv.conf             # DNS server config
+cat /etc/nsswitch.conf | grep hosts  # resolution order
+getent hosts example.com         # effective resolution (hosts + DNS)
+```
+
+---
+
+## tcpdump
+
+```bash
+tcpdump -i eth0 port 80          # capture HTTP on eth0
+tcpdump -i any port 80 -A        # any interface, print ASCII (readable HTTP)
+tcpdump -i eth0 'tcp port 80 and host 10.0.0.5'  # filter by host + port
+tcpdump -w capture.pcap -i eth0  # write to file (open in Wireshark)
+tcpdump -nn -c 50 port 80        # no DNS resolution, capture 50 packets
+```
