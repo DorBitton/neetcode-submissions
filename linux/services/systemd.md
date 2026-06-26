@@ -164,3 +164,32 @@ journalctl -b -u myapp          # logs from last boot
 ss -tulpn | grep :80            # what's already on port 80?
 systemctl status <that-service> # stop it or reconfigure
 ```
+
+## Reboot and boot history
+
+```bash
+# View reboot history:
+last reboot                            # all reboots from /var/log/wtmp
+last reboot | head -10                 # most recent 10 reboots
+who -b                                 # last boot time only
+
+# View boot history via systemd journal:
+journalctl --list-boots                # all boots systemd has seen, with timestamps
+# Output: -2 <ID> Mon 2024-01-15  (index, boot ID, date)
+#          -1 <ID> Tue 2024-01-16
+#           0 <ID> Wed 2024-01-17  (current boot = 0)
+
+# Investigate a previous boot (useful after a crash):
+journalctl -b -1                       # all logs from previous boot
+journalctl -b -1 -p err               # errors only from previous boot
+journalctl -b -2 -u nginx             # nginx logs from two boots ago
+
+# Find what caused the last reboot:
+last reboot | head -3                  # shows "reboot" entries
+journalctl -b -1 -p err --no-pager | tail -30  # errors just before the crash
+# Look for: OOM killer, kernel panic, hardware errors
+
+# Check if shutdown was clean:
+journalctl -b -1 | grep -i "shutdown\|poweroff\|reboot\|panic\|oom"
+dmesg -T | grep -i "panic\|oom\|error" # kernel ring buffer from current boot
+```
