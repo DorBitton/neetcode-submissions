@@ -3,7 +3,7 @@
 ## Start Here
 
 > **Open [`CHEATSHEET.md`](./CHEATSHEET.md) when you need a command fast.**
-> Use the `concepts/` files to understand the *why* behind commands.
+> Use the topic subdirectory files to understand the *why* behind commands.
 
 ---
 
@@ -43,18 +43,18 @@ Real-world troubleshooting labs. Harder than the Pawel lessons — closer to wha
 
 | Scenario | Status | Notes file |
 |---|---|---|
-| Cron Job Troubleshooting | ⬜ | [`concepts/processes.md`](./concepts/processes.md) |
-| Exploring and Mounting Disks in Linux | ⬜ | [`concepts/disks.md`](./concepts/disks.md) |
-| Linux Disk Full: Log Management | ⬜ | [`concepts/logs.md`](./concepts/logs.md) |
-| Linux Firewall Troubleshooting | ⬜ | [`concepts/firewall.md`](./concepts/firewall.md) |
-| Linux Process Management & Resource Limits | ⬜ | [`concepts/processes.md`](./concepts/processes.md) |
-| Linux Systemd Service Debugging | ⬜ | [`concepts/systemd.md`](./concepts/systemd.md) |
-| Linux Troubleshooting: Backup and Restore | ⬜ | [`concepts/backup.md`](./concepts/backup.md) |
-| Linux User, Group, and Permissions Troubleshooting | ⬜ | [`concepts/users.md`](./concepts/users.md) |
-| Log Mining with Grep and Awk | ⬜ | [`concepts/text-processing.md`](./concepts/text-processing.md) |
-| Network Service Troubleshooting | ⬜ | [`concepts/network-tools.md`](./concepts/network-tools.md) |
-| SSH Hardening & Security Audit | ⬜ | [`concepts/ssh.md`](./concepts/ssh.md) |
-| Text Transformation with sed | ⬜ | [`concepts/text-processing.md`](./concepts/text-processing.md) |
+| Cron Job Troubleshooting | ⬜ | [`processes/processes.md`](./processes/processes.md) |
+| Exploring and Mounting Disks in Linux | ⬜ | [`storage/disks.md`](./storage/disks.md) |
+| Linux Disk Full: Log Management | ⬜ | [`logs/logs.md`](./logs/logs.md) |
+| Linux Firewall Troubleshooting | ⬜ | [`networking/firewall.md`](./networking/firewall.md) |
+| Linux Process Management & Resource Limits | ⬜ | [`processes/processes.md`](./processes/processes.md) |
+| Linux Systemd Service Debugging | ⬜ | [`services/systemd.md`](./services/systemd.md) |
+| Linux Troubleshooting: Backup and Restore | ⬜ | [`storage/backup.md`](./storage/backup.md) |
+| Linux User, Group, and Permissions Troubleshooting | ⬜ | [`users/users.md`](./users/users.md) |
+| Log Mining with Grep and Awk | ⬜ | [`logs/text-processing.md`](./logs/text-processing.md) |
+| Network Service Troubleshooting | ⬜ | [`networking/network-tools.md`](./networking/network-tools.md) |
+| SSH Hardening & Security Audit | ⬜ | [`networking/ssh.md`](./networking/ssh.md) |
+| Text Transformation with sed | ⬜ | [`logs/text-processing.md`](./logs/text-processing.md) |
 
 ---
 
@@ -70,18 +70,18 @@ Real-world troubleshooting labs. Harder than the Pawel lessons — closer to wha
 
 | File | Lessons | What's in it |
 |---|---|---|
-| [`concepts/filesystem.md`](./concepts/filesystem.md) | 1, 3, 4, 6, 17 | Navigating, listing, creating, deleting files and dirs |
-| [`concepts/streams.md`](./concepts/streams.md) | 5, 15 | Pipes, stdin/stdout/stderr, redirections |
-| [`concepts/processes.md`](./concepts/processes.md) | 8, 9, 16 | top, ps, cron, process management |
-| [`concepts/users.md`](./concepts/users.md) | 11, 13, 20 | Users, groups, sudo, permissions |
-| [`concepts/logs.md`](./concepts/logs.md) | 14 | /var/log files, journalctl, logrotate, real-world scenarios |
-| [`concepts/systemd.md`](./concepts/systemd.md) | Alexis | systemctl, unit files, service debugging, journalctl |
-| [`concepts/disks.md`](./concepts/disks.md) | Alexis | lsblk, df, mount, umount, fstab |
-| [`concepts/firewall.md`](./concepts/firewall.md) | Alexis | ufw, iptables, blocking/unblocking ports |
-| [`concepts/text-processing.md`](./concepts/text-processing.md) | Alexis | grep, awk, sed, cut — log analysis pipelines |
-| [`concepts/backup.md`](./concepts/backup.md) | Alexis | tar, rsync, restore, verification |
-| [`concepts/network-tools.md`](./concepts/network-tools.md) | Alexis | ss, nc, dig, curl, routing — host-level network debugging |
-| [`concepts/ssh.md`](./concepts/ssh.md) | Alexis | key-based auth, sshd_config, hardening, common lockout fixes |
+| [`storage/filesystem.md`](./storage/filesystem.md) | 1, 3, 4, 6, 17 | Navigating, listing, creating, deleting files and dirs |
+| [`services/streams.md`](./services/streams.md) | 5, 15 | Pipes, stdin/stdout/stderr, redirections |
+| [`processes/processes.md`](./processes/processes.md) | 8, 9, 16 | top, ps, cron, process management |
+| [`users/users.md`](./users/users.md) | 11, 13, 20 | Users, groups, sudo, permissions |
+| [`logs/logs.md`](./logs/logs.md) | 14 | /var/log files, journalctl, logrotate, real-world scenarios |
+| [`services/systemd.md`](./services/systemd.md) | Alexis | systemctl, unit files, service debugging, journalctl |
+| [`storage/disks.md`](./storage/disks.md) | Alexis | lsblk, df, mount, umount, fstab |
+| [`networking/firewall.md`](./networking/firewall.md) | Alexis | ufw, iptables, blocking/unblocking ports |
+| [`logs/text-processing.md`](./logs/text-processing.md) | Alexis | grep, awk, sed, cut — log analysis pipelines |
+| [`storage/backup.md`](./storage/backup.md) | Alexis | tar, rsync, restore, verification |
+| [`networking/network-tools.md`](./networking/network-tools.md) | Alexis | ss, nc, dig, curl, routing — host-level network debugging |
+| [`networking/ssh.md`](./networking/ssh.md) | Alexis | key-based auth, sshd_config, hardening, common lockout fixes |
 
 ### Interview Prep
 
