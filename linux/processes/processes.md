@@ -12,8 +12,8 @@
 4. [Controlling Processes](#4-controlling-processes)
 5. [Background & Foreground Jobs](#5-background--foreground-jobs)
 6. [Resource Limits — ulimit, nice, renice, ionice](#6-resource-limits--ulimit-nice-renice-ionice)
-7. [Crontab — Scheduling](#7-crontab--scheduling)
-8. [Command History & Aliases](#8-command-history--aliases)
+7. [Process Inspection — D-state, lsof, memory, hierarchy](#7-process-inspection--d-state-lsof-memory-hierarchy)
+8. [Crontab — Scheduling](#8-crontab--scheduling)
 
 ---
 
@@ -300,7 +300,89 @@ When the scenario asks you to "reduce I/O of the top offender using idle priorit
 
 ---
 
-## 7. Crontab — Scheduling
+## 7. Process Inspection — D-state, lsof, memory, hierarchy
+
+### D-state processes
+
+```bash
+# D = uninterruptible sleep — process waiting on kernel I/O (disk, NFS, etc.)
+# Cannot be killed with kill -9 — must resolve the underlying I/O issue
+ps aux | grep " D "                    # find D-state processes
+cat /proc/<PID>/wchan                  # what kernel function is it waiting on?
+cat /proc/<PID>/status | grep State   # State: D (disk sleep)
+# Stuck in D state forever → hung NFS mount, failing disk, or kernel bug
+# Fix: unmount the hung filesystem, or reboot (last resort)
+```
+
+### lsof — list open files
+
+```bash
+lsof -p <PID>                          # all files open by a process
+lsof +D /var/log                       # what processes have files open in this dir?
+lsof | grep deleted                    # files deleted but still held open (disk leak!)
+lsof -i :80                            # what process has port 80 open?
+ls /proc/<PID>/fd | wc -l             # count open file descriptors for a process
+```
+
+### File descriptor leaks
+
+```bash
+# Symptom: "too many open files" errors, fd count growing without bound
+ls /proc/<PID>/fd | wc -l            # current fd count for a process
+cat /proc/<PID>/limits | grep "open files"  # soft and hard limits
+# Fix for current session:
+ulimit -n 65535
+# Fix permanently via /etc/security/limits.conf (see resource limits section above)
+# Find the leak: lsof -p <PID> | wc -l  — watch it grow over time
+```
+
+### Memory leak / RSS monitoring
+
+```bash
+ps -eo pid,rss,vsz,comm --sort=-rss | head -10   # top 10 RSS consumers
+watch -n 5 'ps -p <PID> -o pid,rss,vsz'          # watch one process grow every 5s
+# RSS = resident set size = memory actually in RAM
+# If RSS grows unboundedly over time without plateauing → memory leak
+cat /proc/<PID>/status | grep -E "VmRSS|VmSize|VmSwap"  # detailed breakdown
+```
+
+### High swap per process
+
+```bash
+# Find which processes are using the most swap:
+for f in /proc/[0-9]*/status; do
+  awk '/VmSwap|^Name/{printf $2 " " $3 "\n"}' "$f" 2>/dev/null
+done | sort -k2 -rn | head -10
+# If smem is installed (cleaner output):
+smem -r | head -10
+```
+
+### Process hierarchy
+
+```bash
+pstree                                  # tree of all processes from PID 1
+pstree -p                               # include PIDs
+pstree <PID>                            # subtree for a specific process
+ps -eo pid,ppid,comm --sort=ppid        # parent-child relationships in table form
+ps --ppid <PID>                         # direct children of a process
+```
+
+### Uptime and load average
+
+```bash
+uptime
+# output: 09:15:00 up 3 days,  2 users,  load average: 1.23, 0.95, 0.88
+#                                                        ^1min  ^5min  ^15min
+# Load average = average number of processes in run queue (running or waiting for CPU)
+# Rule of thumb: load > nproc = system is overloaded
+nproc                                  # how many CPU cores?
+cat /proc/loadavg                      # same data, scriptable format
+w                                      # uptime + logged-in users + their activity
+```
+
+---
+
+## 8. Crontab — Scheduling
 
 Cron is the Linux task scheduler. `crontab` manages your scheduled jobs.
 
@@ -336,20 +418,8 @@ crontab -r           # remove ALL your cron jobs (careful!)
 # Run at minute 0 of every hour
 0 * * * * /home/dor/backup.sh
 
-# Run every 5 minutes
-*/5 * * * * /home/dor/check.sh
-
-# Run at 9am every Monday
-0 9 * * 1 /home/dor/weekly_report.sh
-
 # Run at midnight every day
 0 0 * * * /home/dor/daily_cleanup.sh
-
-# Run at 2:30pm on weekdays (Mon-Fri)
-30 14 * * 1-5 /home/dor/remind.sh
-
-# Run once on a specific date (Jan 1 at midnight)
-0 0 1 1 * /home/dor/new_year.sh
 ```
 
 **Tips:**
@@ -361,38 +431,3 @@ crontab -r           # remove ALL your cron jobs (careful!)
 - Test your script manually before adding to cron
 
 ---
-
-## 8. Command History & Aliases
-
-```bash
-history              # show numbered history of commands
-history | tail -20   # last 20 commands
-history | grep git   # search history
-!!                   # run last command again
-!n                   # run command number n from history
-!git                 # run most recent command starting with "git"
-Ctrl+R               # reverse search — type to search history interactively
-```
-
-### Aliases
-
-```bash
-alias ll='ls -la'           # create alias for current session
-alias gs='git status'
-alias ..='cd ..'
-unalias ll                  # remove alias
-alias                       # list all aliases
-```
-
-**To persist aliases** — add them to your shell config file:
-```bash
-# ~/.bashrc (bash) or ~/.zshrc (zsh)
-alias ll='ls -la'
-alias gs='git status'
-alias ..='cd ..'
-
-# After editing, reload:
-source ~/.bashrc
-# or:
-source ~/.zshrc
-```
