@@ -156,9 +156,25 @@ Versioning: if you mess up state (bad apply, corrupted file), you can roll back 
 
 ---
 
-## 4. State Locking — DynamoDB
+## 4. State Locking — DynamoDB (and the newer native option)
 
 Two people running `terraform apply` at the same time will corrupt state. Locking prevents this.
+
+**As of Terraform 1.10+, the S3 backend supports native locking** via S3 conditional writes — no DynamoDB table required:
+
+```hcl
+terraform {
+  backend "s3" {
+    bucket       = "my-terraform-state-prod"
+    key          = "prod/vpc/terraform.tfstate"
+    region       = "us-east-1"
+    use_lockfile = true   # native S3 locking, Terraform 1.10+ — no DynamoDB needed
+    encrypt      = true
+  }
+}
+```
+
+This used to require a separate DynamoDB table (below) — that's still valid and you'll see it in plenty of existing production code and older tutorials, but for anything built today, `use_lockfile = true` is simpler: one less resource to bootstrap and pay for. Know both — "why did this used to need DynamoDB, and what changed" is itself a reasonable interview question.
 
 When Terraform starts a plan/apply, it writes a lock to DynamoDB:
 ```
@@ -280,3 +296,9 @@ terraform state push
 
 **"What is 'state drift' and how do you detect it?"**
 > "Drift is when real infrastructure diverges from what's in state — someone made a manual change in the console. `terraform plan` detects it: Terraform refreshes state from the real API and shows a diff. We run `terraform plan` in CI on a schedule to catch drift before it causes problems."
+
+**"Do you still need a DynamoDB table for state locking?"**
+> "Not necessarily — as of Terraform 1.10, the S3 backend supports native locking via conditional writes (`use_lockfile = true`), so a separate DynamoDB table isn't required anymore. Plenty of existing infrastructure still uses the DynamoDB approach, and it's still valid, but for new setups the native option is one less resource to bootstrap and maintain."
+
+**"You need an S3 bucket for remote state, but Terraform needs a backend to run — how do you create the bucket without a chicken-and-egg problem?"**
+> "A separate, minimal bootstrap stack — its own root module with local state (no backend block), whose only job is creating the S3 bucket (and, if not using native locking, the DynamoDB table). It's applied manually and rarely, since a backend block reads/writes state immediately at `terraform init`, which means a stack can't declare a backend pointing at a bucket it's also responsible for creating."

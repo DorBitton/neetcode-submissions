@@ -36,8 +36,10 @@ Chapters 5-10 are reference material — read when you need them while building 
 
 > Book is at `C:\Users\dbitt\Downloads\O'Reilly - Terraform Up & Running` (local only, not in repo).
 
-### Phase 4 — Build something real (ongoing)
-The Cloud Resume Challenge (cloudresumechallenge.dev) is the standard capstone:
+### Phase 4 — Build something real (in progress)
+Standalone capstone repo: `~/Documents/aws-web-cluster-slo` — an nginx web cluster on AWS (VPC, ALB, EC2), Terraform + Ansible + Python SLO scripts + GitHub Actions, built hand-written with mentorship rather than following a tutorial. `concepts/aws-patterns.md` documents the real gotchas hit while building its network module — that's the better proof of understanding than the Cloud Resume Challenge below, since it forces working through the mistakes yourself instead of following steps.
+
+Cloud Resume Challenge (cloudresumechallenge.dev) remains a fine alternative/additional capstone if you want a second project:
 - Build a static resume site + serverless backend manually first
 - Then destroy it and rebuild the entire thing with Terraform
 - The contrast between "clicking in console" and "terraform apply" is what makes it click
@@ -52,7 +54,7 @@ These two answers immediately signal a junior-level Terraform user:
 
 2. **"I copy the code between environments"** → Not using modules. Copy-paste means bugs get copied too and updates require editing in multiple places. See `concepts/modules.md`.
 
-Flip these: lead with "we use S3 remote state with DynamoDB locking" and "we wrap reusable infra in modules" and you sound senior.
+Flip these: lead with "we use S3 remote state with locking" (DynamoDB table, or native `use_lockfile` on Terraform 1.10+ — know both) and "we wrap reusable infra in modules" and you sound senior.
 
 ---
 
@@ -64,7 +66,7 @@ Flip these: lead with "we use S3 remote state with DynamoDB locking" and "we wra
 | `concepts/core-concepts.md` | Declarative vs imperative, init/plan/apply, providers, resources, variables, outputs | ✅ |
 | `concepts/state.md` | Local vs remote state, S3 backend, DynamoDB locking, workspaces | ✅ |
 | `concepts/modules.md` | Module structure, inputs/outputs, versioning, registry | ✅ |
-| `concepts/aws-patterns.md` | VPC + EC2 + ALB in Terraform | ⬜ |
+| `concepts/aws-patterns.md` | VPC/subnet/AZ/NAT in Terraform, `count` + splat gotchas, module wiring | ✅ |
 | `interview-questions.md` | 15 Terraform questions with answers | ⬜ |
 
 ---
